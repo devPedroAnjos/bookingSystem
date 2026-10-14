@@ -1,36 +1,29 @@
-"""Welcome to Reflex! This file outlines the steps to create a basic app."""
+"""Aplicação Reflex do BookingSystem: registro das páginas."""
 
 import reflex as rx
 
-from rxconfig import config
-
-
-class State(rx.State):
-    """The app state."""
-
-
-def index() -> rx.Component:
-    # Welcome Page (Index)
-    return rx.container(
-        rx.color_mode.button(position="top-right"),
-        rx.vstack(
-            rx.heading("Welcome to Reflex!", size="9"),
-            rx.text(
-                "Get started by editing ",
-                rx.code(f"{config.app_name}/{config.app_name}.py"),
-                size="5",
-            ),
-            rx.link(
-                rx.button("Check out our docs!"),
-                href="https://reflex.dev/docs/getting-started/introduction/",
-                is_external=True,
-            ),
-            spacing="5",
-            justify="center",
-            min_height="85vh",
-        ),
-    )
-
+from bookingSystem.pages.cadastro import cadastro
+from bookingSystem.pages.inicio import inicio
+from bookingSystem.pages.login import login
+from bookingSystem.state.auth_state import ROTA_INICIO, ROTA_LOGIN, AuthState
 
 app = rx.App()
-app.add_page(index)
+app.add_page(
+    login,
+    route=ROTA_LOGIN,
+    title="Entrar | BookingSystem",
+    on_load=AuthState.abrir_formulario,
+)
+app.add_page(
+    cadastro,
+    route="/cadastro",
+    title="Criar conta | BookingSystem",
+    on_load=AuthState.abrir_formulario,
+)
+app.add_page(
+    inicio,
+    route=ROTA_INICIO,
+    title="Início | BookingSystem",
+    on_load=AuthState.verificar_sessao,
+)
+app.add_page(rx.fragment, route="/", on_load=rx.redirect(ROTA_INICIO))
