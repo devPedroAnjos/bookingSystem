@@ -1,0 +1,76 @@
+schema: spec-driven
+
+context: |
+  Project: BookingSystem — sistema de reserva de espaços (sala de aula,
+  laboratório, biblioteca, auditório) de uma instituição de ensino organizada
+  em unidades. Projeto acadêmico (Innovation Lab — Faculdade Impacta).
+
+  Domain:
+    Papéis: Aluno (prioridade 1), Professor (2), Coordenador de unidade (3),
+    Administrador (3). Conceitos centrais: Unidade, TipoEspaco, RegraPapel,
+    Espaco, Reserva, SerieRecorrente, EntradaFila, Bloqueio, Falta,
+    Penalidade, Contestacao, Avaliacao, Notificacao, LogAuditoria.
+    Fonte: docs/domain-model.md (conceitos, invariantes, MER e DER).
+    Regras de negócio: docs/project-overview.md, seção 7.
+
+  Tech stack:
+    Backend: Xano com XanoScript (banco, API REST, autenticação JWT, tarefas
+    agendadas). Frontend: Reflex (Python), ambiente venv + pip
+    (requirements.txt). Especificação: OpenSpec. Agente: Claude Code com
+    Xano Developer MCP e Agent Skills do Reflex. Sincronização: Xano CLI.
+
+  Architecture:
+    O Xano é a única fonte de verdade de dados, regras de negócio,
+    autorização e concorrência. O Reflex só consome a API do Xano, sem
+    acesso a banco e sem reimplementar regras. Reflex é a tecnologia
+    obrigatória do frontend: não introduzir outra sem mudança explícita da
+    decisão arquitetural.
+
+  Invariants:
+    - Nunca duas ocupações ativas sobrepostas no mesmo espaço (reservas
+      PENDENTE ou CONFIRMADA e entradas de fila NOTIFICADA, que retêm a
+      vaga); checagem e gravação atômicas no backend.
+    - Prioridade por papel; empate decidido pela ordem de criação no backend.
+    - Reservas só em dias úteis, início a partir de 08h00, término até 22h40,
+      múltiplos de 10 min, fuso America/Sao_Paulo.
+    - Prazos, durações e limites são parâmetros (ConfiguracaoGeral e
+      TipoEspaco), nunca valores fixos no código.
+
+  Security:
+    Autorização por papel e por unidade validada no backend; o frontend não
+    é mecanismo de segurança. Ações sensíveis gravam LogAuditoria. Registros
+    de reserva, falta, penalidade e auditoria não são excluídos fisicamente.
+    Segredos apenas em variáveis de ambiente.
+
+  Development:
+    Desenvolvimento incremental: cada change cria somente as tabelas,
+    endpoints e telas de que precisa. Consultar o Xano Developer MCP e as
+    skills do Reflex antes de assumir sintaxe.
+
+  Language:
+    Escrever a documentação e os artefatos OpenSpec em português brasileiro.
+    Nomes de entidades e campos conforme docs/domain-model.md.
+
+rules:
+  proposal:
+    - Descrever problema, objetivo e escopo, e listar explicitamente o que fica fora do escopo.
+    - Indicar papéis afetados e quais regras da seção 7 do project-overview são tocadas.
+  specs:
+    - Requisitos verificáveis com cenários Dado/Quando/Então, incluindo cenários de erro e de permissão negada.
+    - Cobrir os casos de borda de horário e prioridade que a funcionalidade tocar.
+  design:
+    - Separar o que fica no Xano (dados, endpoints, tarefas agendadas) do que fica no Reflex (páginas, State).
+    - Indicar as tabelas e os campos do DER usados ou criados, e justificar qualquer divergência.
+  tasks:
+    - Tarefas pequenas e verificáveis, separadas por camada (Xano, Reflex), com a verificação de cada uma.
+
+operations:
+  apply:
+    guidance:
+      - Validar todo XanoScript com o Xano Developer MCP antes de marcar a tarefa como concluída.
+      - Nunca executar xano workspace push sem dry-run e aprovação explícita do usuário.
+      - Executar as verificações descritas em tasks.md e relatar o que não pôde ser testado.
+  archive:
+    guidance:
+      - Confirmar que a implementação corresponde às specs e que nenhuma invariante do domínio foi violada.
+      - Se a change alterou uma regra global, atualizar docs/project-overview.md ou docs/domain-model.md.
