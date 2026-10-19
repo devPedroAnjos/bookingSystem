@@ -1,4 +1,4 @@
-"""Página de cadastro de aluno ou professor."""
+"""Página de cadastro de aluno, professor ou coordenador."""
 
 import reflex as rx
 
@@ -12,6 +12,7 @@ def seletor_vinculo() -> rx.Component:
         rx.select.content(
             rx.select.item("Aluno", value="ALUNO"),
             rx.select.item("Professor", value="PROFESSOR"),
+            rx.select.item("Coordenador", value="COORDENADOR"),
         ),
         value=AuthState.vinculo,
         on_change=AuthState.escolher_vinculo,
@@ -19,8 +20,13 @@ def seletor_vinculo() -> rx.Component:
 
 
 def seletor_unidade() -> rx.Component:
+    placeholder = rx.cond(
+        AuthState.vinculo == "COORDENADOR",
+        "Unidade que deseja coordenar",
+        "Unidade de vínculo",
+    )
     return rx.select.root(
-        rx.select.trigger(placeholder="Unidade de vínculo", width="100%"),
+        rx.select.trigger(placeholder=placeholder, width="100%"),
         rx.select.content(
             rx.foreach(
                 AuthState.unidades,
@@ -50,7 +56,7 @@ def cadastro() -> rx.Component:
                 campo("confirmacao_senha", "Confirme a senha", "password"),
                 rx.text("Vínculo", size="2", weight="medium"),
                 seletor_vinculo(),
-                rx.cond(AuthState.vinculo == "PROFESSOR", seletor_unidade()),
+                rx.cond(AuthState.vinculo != "ALUNO", seletor_unidade()),
                 rx.button("Cadastrar", type="submit", width="100%"),
                 spacing="3",
                 width="100%",

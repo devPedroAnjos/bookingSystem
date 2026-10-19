@@ -8,6 +8,7 @@ daqui são só de usabilidade; o Xano revalida tudo.
 import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
+from bookingSystem.state.pedido_state import PedidoState
 
 ROTA_LOGIN = "/login"
 ROTA_INICIO = "/inicio"
@@ -37,6 +38,15 @@ class AuthState(rx.State):
     def nome_papel(self) -> str:
         return NOMES_PAPEIS.get(self.papel, self.papel)
 
+    @rx.var
+    def e_admin(self) -> bool:
+        return self.papel == "ADMIN"
+
+    @rx.var
+    def e_gestor(self) -> bool:
+        """Admin ou coordenador: quem vê a área de aprovações."""
+        return self.papel in ("ADMIN", "COORDENADOR")
+
     def _limpar_sessao(self):
         self._token = ""
         self.nome = ""
@@ -48,25 +58,34 @@ class AuthState(rx.State):
         return rx.redirect(ROTA_LOGIN)
 
     @rx.event
-    def abrir_formulario(self):
+    async def abrir_formulario(self):
         """Limpa mensagens antigas ao abrir login ou cadastro.
 
         O aviso de sessão expirada permanece até o próximo login.
         """
         self.mensagem_erro = ""
         self.mensagem_sucesso = ""
+        pedido = await self.get_state(PedidoState)
+        pedido._limpar()
 
     @rx.event
     async def entrar(self, dados: dict):
         email = str(dados.get("email", "")).strip()
         senha = str(dados.get("senha", ""))
         self.mensagem_erro = ""
+        pedido = await self.get_state(PedidoState)
+        pedido._limpar()
         if not email or not senha:
             self.mensagem_erro = "Informe o e-mail e a senha."
             return
 
         try:
             sessao = await api.login(email, senha)
+        except api.AcessoNegado as erro:
+            self.mensagem_erro = erro.mensagem
+            # A senha é usada só aqui, para consultar o pedido; não fica no State
+            await pedido._carregar_recusa(email, senha)
+            return
         except api.ErroApi as erro:
             self.mensagem_erro = erro.mensagem
             return
@@ -80,7 +99,8 @@ class AuthState(rx.State):
     @rx.event
     async def escolher_vinculo(self, vinculo: str):
         self.vinculo = vinculo
-        if vinculo == "PROFESSOR" and not self.unidades:
+        # Recarrega sempre: uma unidade pode ter sido desativada desde a última consulta
+        if vinculo in ("PROFESSOR", "COORDENADOR"):
             try:
                 unidades = await api.listar_unidades_ativas()
             except api.ErroApi as erro:
@@ -106,9 +126,9 @@ class AuthState(rx.State):
         if senha != confirmacao:
             self.mensagem_erro = "As senhas não conferem."
             return
-        e_professor = self.vinculo == "PROFESSOR"
+        pede_unidade = self.vinculo in ("PROFESSOR", "COORDENADOR")
         unidade_id = None
-        if e_professor and unidade.isdigit():
+        if pede_unidade and unidade.isdigit():
             unidade_id = int(unidade)
 
         try:
@@ -120,11 +140,10 @@ class AuthState(rx.State):
             return
         self.mensagem_sucesso = resposta["mensagem"]
 
-    @rx.event
-    async def verificar_sessao(self):
-        """Exige sessão nas páginas protegidas.
+    async def _atualizar_sessao(self):
+        """Confere a sessão no Xano e atualiza nome e papel.
 
-        É só usabilidade: a segurança está no Xano.
+        Devolve o redirecionamento quando não há sessão válida.
         """
         if not self._token:
             return rx.redirect(ROTA_LOGIN)
@@ -134,12 +153,60 @@ class AuthState(rx.State):
             return self._sessao_expirada()
         except api.ErroApi as erro:
             self.mensagem_erro = erro.mensagem
-            return
+            return None
         self.nome = usuario["nome"]
         self.papel = usuario["papel"]
+        return None
+
+    @rx.event
+    async def verificar_sessao(self):
+        """Exige sessão nas páginas protegidas.
+
+        É só usabilidade: a segurança está no Xano.
+        """
+        return await self._atualizar_sessao()
+
+    @rx.event
+    async def exigir_gestor(self):
+        """Guarda das páginas de admin e coordenador (usabilidade)."""
+        redirecionamento = await self._atualizar_sessao()
+        if redirecionamento is not None:
+            return redirecionamento
+        if not self.e_gestor:
+            return rx.redirect(ROTA_INICIO)
+
+    @rx.event
+    async def exigir_admin(self):
+        """Guarda das páginas só de admin (usabilidade)."""
+        redirecionamento = await self._atualizar_sessao()
+        if redirecionamento is not None:
+            return redirecionamento
+        if not self.e_admin:
+            return rx.redirect(ROTA_INICIO)
 
     @rx.event
     def sair(self):
         self._limpar_sessao()
         self.aviso = ""
         return rx.redirect(ROTA_LOGIN)
+
+
+async def token_da_sessao(estado: rx.State) -> str:
+    """Token da sessão atual, lido do AuthState no servidor."""
+    auth = await estado.get_state(AuthState)
+    return auth._token
+
+
+async def tratar_erro_api(estado: rx.State, erro: api.ErroApi):
+    """Tratamento comum dos States de gestão.
+
+    Sessão inválida volta ao login; acesso negado volta ao início;
+    os demais erros viram a mensagem da página.
+    """
+    if isinstance(erro, api.NaoAutenticado):
+        auth = await estado.get_state(AuthState)
+        return auth._sessao_expirada()
+    estado.mensagem_erro = erro.mensagem
+    if isinstance(erro, api.AcessoNegado):
+        return rx.redirect(ROTA_INICIO)
+    return None
