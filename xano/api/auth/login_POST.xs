@@ -15,40 +15,18 @@ query login verb=POST {
   }
 
   stack {
-    var $mensagem_credenciais {
-      value = "E-mail ou senha inválidos."
-    }
-  
-    db.get usuario {
-      field_name = "email"
-      field_value = $input.email|first_notnull:""
+    function.run conferir_credenciais {
+      input = {email: $input.email, senha: $input.senha}
     } as $usuario
-  
-    var $senha_confere {
-      value = false
-    }
-  
-    conditional {
-      if ($usuario != null) {
-        security.check_password {
-          text_password = $input.senha|first_notnull:""
-          hash_password = $usuario.senha_hash
-        } as $resultado_senha
-      
-        var.update $senha_confere {
-          value = $resultado_senha
-        }
-      }
-    }
-  
-    precondition ($senha_confere) {
-      error_type = "unauthorized"
-      error = $mensagem_credenciais
-    }
   
     precondition ($usuario.status_conta != "PENDENTE") {
       error_type = "accessdenied"
       error = "Sua conta aguarda aprovação."
+    }
+  
+    precondition ($usuario.status_conta != "RECUSADA") {
+      error_type = "accessdenied"
+      error = "Seu cadastro foi recusado. Motivo: " ~ ($usuario.motivo_recusa_cadastro|first_notnull:"não informado")
     }
   
     precondition ($usuario.status_conta == "ATIVA") {

@@ -1,6 +1,6 @@
-// Cadastro público de aluno ou professor (design.md, D4).
-// Papel, situação e dados de aprovação não são entradas: não podem ser forçados pelo visitante.
-// Cria conta de ALUNO (ATIVA) ou PROFESSOR (PENDENTE) com e-mail institucional
+// Cadastro público de aluno, professor ou coordenador.
+// Papel, situação, dados de aprovação e coordenações não são entradas: não podem ser forçados.
+// Cria conta de ALUNO (ATIVA) ou PROFESSOR/COORDENADOR (PENDENTE) com e-mail institucional
 query cadastro verb=POST {
   api_group = "auth"
 
@@ -47,10 +47,14 @@ query cadastro verb=POST {
       error = "A senha deve ter pelo menos 8 caracteres."
     }
   
-    // Vínculo: só ALUNO ou PROFESSOR
-    precondition ($input.vinculo == "ALUNO" || $input.vinculo == "PROFESSOR") {
+    // Vínculo: ALUNO, PROFESSOR ou COORDENADOR. ADMIN nunca é obtido pelo cadastro.
+    var $pede_aprovacao {
+      value = $input.vinculo == "PROFESSOR" || $input.vinculo == "COORDENADOR"
+    }
+  
+    precondition ($input.vinculo == "ALUNO" || $pede_aprovacao) {
       error_type = "inputerror"
-      error = "Escolha o vínculo: aluno ou professor."
+      error = "Escolha o vínculo: aluno, professor ou coordenador."
     }
   
     // Domínio: exatamente um dos domínios aceitos em configuracao_geral
@@ -83,16 +87,16 @@ query cadastro verb=POST {
       error = "Use seu e-mail institucional."
     }
   
-    // Professor: unidade de vínculo existente e ativa. Para aluno, a unidade é ignorada.
+    // Professor e coordenador: unidade pedida existente e ativa. Para aluno, a unidade é ignorada.
     var $unidade_vinculo_id {
       value = null
     }
   
     conditional {
-      if ($input.vinculo == "PROFESSOR") {
+      if ($pede_aprovacao) {
         precondition ($input.unidade_vinculo_id != null) {
           error_type = "inputerror"
-          error = "Escolha a unidade de vínculo."
+          error = "Escolha a unidade."
         }
       
         db.get unidade {
@@ -102,7 +106,7 @@ query cadastro verb=POST {
       
         precondition ($unidade != null && $unidade.ativa) {
           error_type = "inputerror"
-          error = "Unidade de vínculo inválida."
+          error = "Unidade inválida."
         }
       
         var.update $unidade_vinculo_id {
@@ -141,6 +145,7 @@ query cadastro verb=POST {
                 status_conta      : $status_conta
                 unidade_vinculo_id: $unidade_vinculo_id
                 criado_em         : now
+                pedidos_cadastro  : 1
               }
             } as $usuario
           
@@ -157,6 +162,7 @@ query cadastro verb=POST {
                 papel             : $usuario.papel
                 status_conta      : $usuario.status_conta
                 unidade_vinculo_id: $usuario.unidade_vinculo_id
+                pedidos_cadastro  : $usuario.pedidos_cadastro
               }
               }
             } as $registro_auditoria
@@ -182,7 +188,21 @@ query cadastro verb=POST {
     }
   
     var $mensagem {
-      value = $status_conta == "ATIVA" ? "Conta criada. Você já pode entrar." : "Conta criada. Ela aguarda aprovação da coordenação."
+      value = "Conta criada. Você já pode entrar."
+    }
+  
+    conditional {
+      if ($input.vinculo == "PROFESSOR") {
+        var.update $mensagem {
+          value = "Conta criada. Ela aguarda aprovação da coordenação."
+        }
+      }
+    
+      elseif ($input.vinculo == "COORDENADOR") {
+        var.update $mensagem {
+          value = "Conta criada. Ela aguarda aprovação da administração."
+        }
+      }
     }
   }
 

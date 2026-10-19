@@ -7,6 +7,12 @@ table configuracao_geral {
   
     // Domínios de e-mail aceitos no cadastro (comparação exata com a parte após o @)
     text[] dominios_email
+  
+    // Limites da coordenação e do cadastro, preenchidos pelo bootstrap
+    int? max_coordenadores_unidade?
+  
+    int? max_unidades_coordenador?
+    int? max_pedidos_cadastro?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]
