@@ -39,7 +39,12 @@ ConfiguraçãoGeral (parâmetros globais — registro único)
 
 Pessoa que acessa o sistema. Tem exatamente **um papel**.
 
-**Principais informações:** nome; e-mail institucional (único); senha (hash); papel (`ALUNO`, `PROFESSOR`, `COORDENADOR`, `ADMIN`); situação da conta (`PENDENTE`, `ATIVA`, `RECUSADA`, `INATIVA`); unidade de vínculo (usada para aprovar professor); quem aprovou e quando.
+**Principais informações:**
+- nome, e-mail institucional (único) e senha (hash);
+- papel (`ALUNO`, `PROFESSOR`, `COORDENADOR`, `ADMIN`) e situação da conta (`PENDENTE`, `ATIVA`, `RECUSADA`, `INATIVA`);
+- unidade de vínculo: para pedido `PENDENTE` ou `RECUSADA`, é a **unidade pedida**; para professor ativo, é a **unidade a que ele pertence**; para aluno e coordenador ativos, fica vazia;
+- decisão do pedido: quem decidiu, quando e o motivo da recusa;
+- pedidos de cadastro enviados, justificativa do reenvio e se a última recusa foi automática por desativação da unidade.
 
 **Relacionamentos:**
 - Faz várias reservas, séries recorrentes e entradas em fila.
@@ -49,9 +54,14 @@ Pessoa que acessa o sistema. Tem exatamente **um papel**.
 
 **Regras estruturais:**
 - O **nível de prioridade** deriva do papel: Aluno = 1, Professor = 2, Coordenador = 3, Admin = 3.
-- Conta de aluno nasce `ATIVA`. Conta de professor nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin ou de um coordenador da unidade de vínculo.
+- Conta de aluno nasce `ATIVA`.
+- Conta de professor nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin ou de um coordenador ativo da unidade pedida.
+- Conta de coordenador nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin; ao ser aprovada, passa a coordenar a unidade pedida.
+- A recusa exige motivo. O titular pode reenviar o pedido até o limite de pedidos; a recusa automática por desativação da unidade não consome pedido. Só o admin aprova conta `RECUSADA`.
 - Só contas `ATIVA` podem autenticar.
-- Os papéis `COORDENADOR` e `ADMIN` são atribuídos somente por admin.
+- O papel `ADMIN` é atribuído somente por admin; o cadastro nunca o concede.
+- Mudança de papel (só admin, conta `ATIVA`): `ALUNO` → `PROFESSOR` → `COORDENADOR`, e `COORDENADOR` → `PROFESSOR`. Ninguém volta a `ALUNO`. Virar professor exige unidade; virar coordenador exige de 1 a 2 unidades.
+- O professor pertence a uma unidade e só o admin o transfere. O aluno pertence à instituição.
 
 ### 2.2 Unidade
 
@@ -59,13 +69,27 @@ Campus ou prédio da instituição.
 
 **Principais informações:** nome; endereço; ativa.
 
-**Relacionamentos:** possui vários espaços; tem um ou mais coordenadores (N:N com Usuário).
+**Relacionamentos:** possui vários espaços, professores (pertencimento) e de 0 a 4 coordenadores (N:N com Usuário).
 
-**Regras estruturais:** coordenadores só visualizam e alteram dados (espaços, bloqueios, reservas pendentes, aprovação de professor) das unidades que coordenam.
+**Regras estruturais:**
+- Coordenadores só visualizam e alteram dados (espaços, bloqueios, reservas pendentes, aprovação de professor) das unidades que coordenam.
+- Só o admin cria unidades, sempre com um coordenador (movido ou acrescentado), corrige nome e endereço (nome único sem diferenciar maiúsculas e minúsculas), desativa e reativa. Unidades nunca são excluídas.
+- Desativar uma unidade exige destino para cada coordenador que só coordena ela e para cada professor dela. Os pedidos pendentes dela são recusados automaticamente. Reativada, ela volta sem coordenadores e sem professores.
 
 ### 2.3 Coordenação de Unidade (associativa)
 
-Associa um usuário de papel `COORDENADOR` a uma unidade. Um coordenador pode ter várias unidades, e uma unidade pode ter vários coordenadores.
+Associa um usuário de papel `COORDENADOR` a uma unidade. Contam apenas coordenadores com conta `ATIVA`.
+
+**Regras estruturais:**
+- Todo coordenador ativo coordena de **1 a 2 unidades**; toda unidade tem **no máximo 4 coordenadores**. Os dois limites são parâmetros.
+- O admin **acrescenta** uma unidade a um coordenador, **move** um coordenador entre unidades ou **remove** uma das duas unidades dele. Nenhuma dessas operações pode deixar a origem sem coordenador ativo.
+- Uma unidade só fica sem coordenador ativo:
+  - antes do primeiro ser aprovado;
+  - quando o último sai por mudança de papel;
+  - depois de ser reativada.
+
+  Nesse caso, o admin cuida dela.
+- Remover uma coordenação apaga o vínculo; o histórico fica no log de auditoria.
 
 ### 2.4 Tipo de Espaço
 
@@ -240,6 +264,9 @@ Registro único com os parâmetros globais editáveis pelo admin.
 | Antecedência mínima para deslocar por prioridade | 120 min |
 | Prazo para avaliar | 7 dias |
 | Período máximo de recorrência | 6 meses |
+| Máximo de coordenadores por unidade | 4 |
+| Máximo de unidades por coordenador | 2 |
+| Máximo de pedidos de cadastro (cadastro + reenvios) | 3 |
 
 ---
 
@@ -408,6 +435,9 @@ erDiagram
         int aprovado_por_id FK
         timestamp aprovado_em
         string motivo_recusa_cadastro
+        int pedidos_cadastro
+        string justificativa_cadastro
+        bool recusa_sem_custo
         timestamp criado_em
     }
     COORDENACAO_UNIDADE {
@@ -588,15 +618,20 @@ erDiagram
         int prazo_deslocamento_minutos
         int prazo_avaliacao_dias
         int max_meses_recorrencia
+        int max_coordenadores_unidade
+        int max_unidades_coordenador
+        int max_pedidos_cadastro
     }
 ```
+
+> **Tabela técnica fora do modelo de domínio:** `trava` (`nome` único, `usado_em`) existe só para a exclusão mútua no Xano. Como o Xano não oferece isolamento serializável, operações que contam e depois gravam editam a linha `"governanca"` como primeira instrução da transação. Detalhes no `design.md` da change `coordenacao-unidades`.
 
 ### A.1 Restrições de integridade
 
 | Tabela | Restrição |
 |---|---|
-| `usuario` | `email` único; `unidade_vinculo_id` obrigatório quando o cadastro é de professor. |
-| `coordenacao_unidade` | Único por (`usuario_id`, `unidade_id`). |
+| `usuario` | `email` único; `unidade_vinculo_id` obrigatório no cadastro de professor e de coordenador e para professor ativo; `pedidos_cadastro` até o limite de `configuracao_geral` (exceto após recusa sem custo). |
+| `coordenacao_unidade` | Único por (`usuario_id`, `unidade_id`); de 1 a `max_unidades_coordenador` por coordenador ativo; até `max_coordenadores_unidade` coordenadores ativos por unidade. |
 | `regra_papel` | Único por (`tipo_espaco_id`, `papel`). |
 | `espaco_recurso` | Único por (`espaco_id`, `recurso_id`); `quantidade >= 1`. |
 | `reserva` | `inicio < fim`. Sem sobreposição entre reservas ativas do mesmo espaço, nem com entrada de fila `NOTIFICADA` (exceto a reserva gerada pela própria entrada), garantida de forma atômica no backend. |

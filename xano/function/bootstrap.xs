@@ -1,4 +1,5 @@
-// Carga inicial idempotente: configuração geral, unidades iniciais e administrador inicial.
+// Carga inicial idempotente: configuração geral (com os parâmetros de coordenação e cadastro),
+// unidades iniciais, administrador inicial, linha de trava e pedidos_cadastro das contas antigas.
 // Executada manualmente depois do push. As credenciais do administrador vêm de variáveis
 // de ambiente do Xano e nunca são versionadas.
 // Cria a configuração, as unidades iniciais e o primeiro ADMIN, sem duplicar nada
@@ -38,30 +39,117 @@ function bootstrap {
   
     var $resultado {
       value = {
-        configuracao_criada: false
-        unidades_criadas   : []
-        admin_criado       : false
+        configuracao_criada : false
+        parametros_ajustados: []
+        unidades_criadas    : []
+        admin_criado        : false
+        trava_criada        : false
+        contas_com_pedido_1 : 0
+      }
+    }
+  
+    // Valores padrão dos parâmetros (domain-model.md, §2.18)
+    var $parametros_padrao {
+      value = {
+        max_coordenadores_unidade: 4
+        max_unidades_coordenador : 2
+        max_pedidos_cadastro     : 3
       }
     }
   
     db.transaction {
       stack {
         db.query configuracao_geral {
-          return = {type: "exists"}
-        } as $configuracao_existe
+          return = {type: "single"}
+        } as $configuracao
       
         conditional {
-          if (!$configuracao_existe) {
+          if ($configuracao == null) {
             db.add configuracao_geral {
               data = {
-                dominios_email: ["aluno.impacta.edu.br", "impacta.edu.br"]
+                dominios_email           : ["aluno.impacta.edu.br", "impacta.edu.br"]
+                max_coordenadores_unidade: $parametros_padrao.max_coordenadores_unidade
+                max_unidades_coordenador : $parametros_padrao.max_unidades_coordenador
+                max_pedidos_cadastro     : $parametros_padrao.max_pedidos_cadastro
               }
-            } as $configuracao
+            } as $configuracao_criada
           
             var.update $resultado.configuracao_criada {
               value = true
             }
           }
+        
+          else {
+            // Preenche só os parâmetros vazios, sem alterar valores já definidos
+            var $ajustes {
+              value = {}
+            }
+          
+            foreach ($parametros_padrao|keys) {
+              each as $parametro {
+                conditional {
+                  if (($configuracao|get:$parametro) == null) {
+                    var.update $ajustes {
+                      value = $ajustes
+                        |set:$parametro:($parametros_padrao|get:$parametro)
+                    }
+                  }
+                }
+              }
+            }
+          
+            conditional {
+              if (($ajustes|keys|count) > 0) {
+                db.patch configuracao_geral {
+                  field_name = "id"
+                  field_value = $configuracao.id
+                  data = $ajustes
+                } as $configuracao_ajustada
+              
+                var.update $resultado.parametros_ajustados {
+                  value = $ajustes|keys
+                }
+              }
+            }
+          }
+        }
+      
+        // Linha usada pela trava de governança (design.md, D3)
+        db.has trava {
+          field_name = "nome"
+          field_value = "governanca"
+        } as $trava_existe
+      
+        conditional {
+          if (!$trava_existe) {
+            db.add trava {
+              data = {nome: "governanca", usado_em: now}
+            } as $trava_criada
+          
+            var.update $resultado.trava_criada {
+              value = true
+            }
+          }
+        }
+      
+        // Contas criadas antes do campo pedidos_cadastro contam como 1 pedido
+        db.query usuario {
+          where = $db.usuario.pedidos_cadastro == null
+          return = {type: "list"}
+        } as $contas_sem_pedido
+      
+        foreach ($contas_sem_pedido) {
+          each as $conta {
+            db.edit usuario {
+              field_name = "id"
+              field_value = $conta.id
+              data = {pedidos_cadastro: 1}
+            } as $conta_ajustada
+          }
+        }
+      
+        var.update $resultado.contas_com_pedido_1 {
+          value = $contas_sem_pedido|count
         }
       
         // Nomes e endereços provisórios até a equipe confirmar (design.md, Open Questions)

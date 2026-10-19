@@ -40,9 +40,13 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 | **Aluno** | 1 (menor) | Busca espaços, reserva biblioteca e laboratório, cancela, faz check-in, avalia, entra em fila de espera. |
 | **Professor** | 2 | Tudo que o aluno faz, e também reserva sala de aula e auditório, inclusive reserva recorrente de sala de aula. |
 | **Coordenador de unidade** | 3 | Cadastra e edita espaços, bloqueia espaços (manutenção, evento, feriado), aprova ou recusa reservas pendentes e aprova cadastros de professor — **somente na(s) própria(s) unidade(s)**. Também pode reservar. |
-| **Administrador** | 3 | Define regras por tipo de espaço e parâmetros gerais, cria tipos de espaço, gerencia papéis e permissões, aprova cadastros de professor, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
+| **Administrador** | 3 | Define regras por tipo de espaço e parâmetros gerais, cria tipos de espaço, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
 
-Um coordenador pode ser responsável por mais de uma unidade. Alunos e professores podem reservar espaços de qualquer unidade.
+- **Coordenador:** coordena de **1 a 2 unidades** (parâmetro), e cada unidade tem **no máximo 4 coordenadores** (parâmetro). O administrador age em todas as unidades.
+- **Professor:** **pertence a uma unidade**, escolhida no cadastro. Ela serve para aprovação e pertencimento, e só o administrador transfere o professor para outra unidade (o pedido de transferência acontece fora do sistema).
+- **Aluno:** pertence à instituição, e não a uma unidade.
+- **Reservas:** alunos e professores podem reservar espaços de qualquer unidade.
+- **Mudança de papel:** segue a sequência **aluno → professor → coordenador**; coordenador pode voltar a professor, e ninguém volta a ser aluno. Virar coordenador exige escolher as unidades no mesmo ato, e deixar de ser coordenador remove as coordenações.
 
 ## 5. Escopo
 
@@ -74,7 +78,7 @@ Um coordenador pode ser responsável por mais de uma unidade. Alunos e professor
 
 ## 6. Principais funcionalidades
 
-1. **Cadastro e login** — o usuário se cadastra informando nome, e-mail institucional, senha e o tipo de vínculo (aluno ou professor). Contas de aluno ficam ativas imediatamente. Contas de professor ficam pendentes até a aprovação de um administrador ou do coordenador da unidade indicada.
+1. **Cadastro e login** — o usuário se cadastra informando nome, e-mail institucional, senha e o tipo de vínculo (aluno, professor ou coordenador). Contas de aluno ficam ativas imediatamente. Contas de professor ficam pendentes até a aprovação de um administrador ou do coordenador da unidade indicada; contas de coordenador, até a aprovação de um administrador. Quem é recusado vê o motivo e pode pedir nova análise.
 2. **Busca de espaços** — por unidade, tipo, data, horário, capacidade e recursos; mostra apenas os tipos que o papel do usuário pode reservar.
 3. **Verificação de disponibilidade** — o sistema verifica penalidade ativa, bloqueios, conflitos de horário e regras do tipo de espaço antes de aceitar o pedido.
 4. **Reserva** — confirmada imediatamente ou criada como pendente quando o tipo exige aprovação para aquele papel.
@@ -182,10 +186,14 @@ O administrador também configura, por tipo: duração máxima, antecedência m�
 ### 7.10 Cadastro e contas
 
 - Cadastro somente com **e-mail institucional**. O domínio aceito é configurável.
-- No cadastro, o usuário escolhe **aluno** ou **professor**.
+- No cadastro, o usuário escolhe **aluno**, **professor** ou **coordenador**.
   - Aluno: conta ativa imediatamente.
-  - Professor: conta **pendente** até a aprovação de um administrador ou do coordenador da unidade indicada no cadastro. Enquanto pendente, não acessa o sistema.
-- O papel de coordenador e o de administrador são atribuídos apenas pelo administrador.
+  - Professor: conta **pendente** até a aprovação de um administrador ou do coordenador da unidade indicada no cadastro.
+  - Coordenador: conta **pendente** até a aprovação de um **administrador**. Ao ser aprovado, passa a coordenar a unidade indicada, se ela estiver ativa e tiver vaga.
+  - Enquanto pendente, a conta não acessa o sistema.
+- A **recusa exige motivo**, que a pessoa vê ao tentar entrar com a senha correta. Ela pode **pedir nova análise**, trocando a unidade e o papel pedido (professor ou coordenador), até o limite de **3 pedidos** (parâmetro). Esgotados os pedidos, só o administrador pode aprovar a conta.
+- Ao **desativar uma unidade**, os pedidos pendentes dela são recusados automaticamente e essa recusa **não consome pedido**.
+- O papel de administrador é atribuído apenas pelo administrador. O cadastro público nunca concede o papel de administrador.
 
 ### 7.11 Notificações
 
@@ -243,20 +251,22 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 
 ## 11. Estratégia de desenvolvimento
 
-Sugestão de ordem das changes, a ser confirmada no primeiro Explore:
+Ordem das changes (ajustada durante os Explores):
 
-1. Autenticação, cadastro e papéis (inclui aprovação de professor).
-2. Unidades, tipos de espaço, espaços e recursos.
-3. Regras por tipo de espaço e busca de disponibilidade.
-4. Reserva avulsa com verificação de conflito e regras.
-5. Aprovação de reservas pendentes e expiração.
-6. Prioridade, deslocamento e fila de espera.
-7. Cancelamento, check-in, faltas e penalidades (inclui contestação).
-8. Bloqueios.
-9. Reserva recorrente de sala de aula.
-10. Avaliações.
-11. Notificações in-app.
-12. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível.
+1. Fundação e autenticação: cadastro, login, auditoria e carga inicial (C1, `fundacao-autenticacao`).
+2. Coordenação e unidades: aprovação de professor e coordenador, reenvio de pedido, papéis, coordenação, gestão de unidades e autorização por unidade (C2, `coordenacao-unidades`).
+3. Contas, administradores e senha: administradores secundários, senha provisória, troca de senha, inativação de contas e tela de parâmetros (C3, `contas-admins-senha`).
+4. Tipos de espaço, espaços e recursos.
+5. Regras por tipo de espaço e busca de disponibilidade.
+6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2).
+7. Aprovação de reservas pendentes e expiração.
+8. Prioridade, deslocamento e fila de espera.
+9. Cancelamento, check-in, faltas e penalidades (inclui contestação).
+10. Bloqueios.
+11. Reserva recorrente de sala de aula.
+12. Avaliações.
+13. Notificações in-app.
+14. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível.
 
 ## 12. Fonte de verdade e documentação
 
