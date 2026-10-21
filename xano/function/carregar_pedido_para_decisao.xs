@@ -10,11 +10,15 @@ function carregar_pedido_para_decisao {
     int ator_id
     int usuario_id
     text situacao_esperada
+    int? emitido_em?
   }
 
   stack {
     function.run usuario_ativo {
-      input = {usuario_id: $input.ator_id}
+      input = {
+        usuario_id: $input.ator_id
+        emitido_em: $input.emitido_em
+      }
     } as $ator
   
     precondition ($ator.papel == "ADMIN" || $ator.papel == "COORDENADOR") {

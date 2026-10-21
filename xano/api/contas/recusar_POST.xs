@@ -31,6 +31,7 @@ query recusar verb=POST {
         function.run carregar_pedido_para_decisao {
           input = {
             ator_id          : $auth.id
+            emitido_em       : ($auth.extras|get:"emitido_em")|first_notnull:0
             usuario_id       : $input.usuario_id
             situacao_esperada: "PENDENTE"
           }

@@ -34,19 +34,8 @@ query login verb=POST {
       error = "O acesso não está liberado para esta conta."
     }
   
-    var $duracao_token {
-      value = $env.AUTH_TOKEN_TTL_SEGUNDOS|first_notnull:0|to_int
-    }
-  
-    precondition ($duracao_token > 0) {
-      error = "Não foi possível entrar agora. Tente novamente mais tarde."
-    }
-  
-    security.create_auth_token {
-      table = "usuario"
-      extras = {}
-      expiration = $duracao_token
-      id = $usuario.id
+    function.run emitir_token {
+      input = {usuario_id: $usuario.id}
     } as $token
   }
 
@@ -54,10 +43,12 @@ query login verb=POST {
     token  : $token
     usuario: ```
       {
-        id   : $usuario.id,
-        nome : $usuario.nome,
-        email: $usuario.email,
-        papel: $usuario.papel
+        id              : $usuario.id,
+        nome            : $usuario.nome,
+        email           : $usuario.email,
+        papel           : $usuario.papel,
+        admin_principal : $usuario.admin_principal == true,
+        senha_provisoria: $usuario.senha_provisoria == true
       }
       ```
   }

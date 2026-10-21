@@ -1,5 +1,6 @@
-// Carga inicial idempotente: configuração geral (com os parâmetros de coordenação e cadastro),
-// unidades iniciais, administrador inicial, linha de trava e pedidos_cadastro das contas antigas.
+// Carga inicial idempotente: configuração geral (com os parâmetros de coordenação, cadastro e
+// administradores), unidades iniciais, administrador inicial (principal), marca de principal no
+// admin já existente, linha de trava e pedidos_cadastro das contas antigas.
 // Executada manualmente depois do push. As credenciais do administrador vêm de variáveis
 // de ambiente do Xano e nunca são versionadas.
 // Cria a configuração, as unidades iniciais e o primeiro ADMIN, sem duplicar nada
@@ -38,14 +39,17 @@ function bootstrap {
     }
   
     var $resultado {
-      value = {
-        configuracao_criada : false
-        parametros_ajustados: []
-        unidades_criadas    : []
-        admin_criado        : false
-        trava_criada        : false
-        contas_com_pedido_1 : 0
-      }
+      value = ```
+        {
+          configuracao_criada : false
+          parametros_ajustados: []
+          unidades_criadas    : []
+          admin_criado        : false
+          trava_criada        : false
+          contas_com_pedido_1 : 0
+          principal_marcado   : false
+        }
+        ```
     }
   
     // Valores padrão dos parâmetros (domain-model.md, §2.18)
@@ -54,6 +58,7 @@ function bootstrap {
         max_coordenadores_unidade: 4
         max_unidades_coordenador : 2
         max_pedidos_cadastro     : 3
+        max_admins               : 3
       }
     }
   
@@ -71,6 +76,7 @@ function bootstrap {
                 max_coordenadores_unidade: $parametros_padrao.max_coordenadores_unidade
                 max_unidades_coordenador : $parametros_padrao.max_unidades_coordenador
                 max_pedidos_cadastro     : $parametros_padrao.max_pedidos_cadastro
+                max_admins               : $parametros_padrao.max_admins
               }
             } as $configuracao_criada
           
@@ -189,12 +195,13 @@ function bootstrap {
           if (!$admin_existe) {
             db.add usuario {
               data = {
-                nome        : $admin_nome
-                email       : $admin_email
-                senha_hash  : $admin_senha
-                papel       : "ADMIN"
-                status_conta: "ATIVA"
-                criado_em   : now
+                nome           : $admin_nome
+                email          : $admin_email
+                senha_hash     : $admin_senha
+                papel          : "ADMIN"
+                status_conta   : "ATIVA"
+                criado_em      : now
+                admin_principal: true
               }
             } as $admin
           
@@ -215,6 +222,45 @@ function bootstrap {
           
             var.update $resultado.admin_criado {
               value = true
+            }
+          }
+        
+          else {
+            // Admin já existente (C1) sem marca de principal: marca o admin ativo mais antigo
+            db.query usuario {
+              where = $db.usuario.papel == "ADMIN" && $db.usuario.admin_principal == true
+              return = {type: "exists"}
+            } as $principal_existe
+          
+            conditional {
+              if (!$principal_existe) {
+                db.query usuario {
+                  where = $db.usuario.papel == "ADMIN" && $db.usuario.status_conta == "ATIVA"
+                  sort = {id: "asc"}
+                  return = {type: "single"}
+                } as $mais_antigo
+              
+                db.edit usuario {
+                  field_name = "id"
+                  field_value = $mais_antigo.id
+                  data = {admin_principal: true}
+                } as $principal
+              
+                function.run registrar_auditoria {
+                  input = {
+                    ator_id     : null
+                    acao        : "MARCAR_ADMIN_PRINCIPAL"
+                    entidade    : "usuario"
+                    entidade_id : $principal.id
+                    dados_antes : {admin_principal: false}
+                    dados_depois: {admin_principal: true}
+                  }
+                } as $registro_principal
+              
+                var.update $resultado.principal_marcado {
+                  value = true
+                }
+              }
             }
           }
         }

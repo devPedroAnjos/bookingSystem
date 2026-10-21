@@ -49,6 +49,17 @@ table usuario {
     // Recusa automática por desativação da unidade: o próximo reenvio não consome pedido.
     // Vazio equivale a falso (o Xano descarta o padrão false ao salvar).
     bool recusa_sem_custo?
+  
+    // Admin do bootstrap: único, nunca rebaixado nem inativado. Vazio equivale a falso.
+    bool admin_principal?
+  
+    // Senha definida por um admin (conta criada do zero ou senha redefinida):
+    // só a troca de senha é permitida até ela ser trocada. Vazio equivale a falso.
+    bool senha_provisoria?
+  
+    // Instante (epoch em ms) da última troca ou redefinição de senha:
+    // tokens emitidos antes dele são recusados. Vazio = nenhuma troca ainda.
+    int? sessoes_validas_desde?
   }
 
   index = [

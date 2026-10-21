@@ -13,7 +13,10 @@ query usuarios verb=GET {
 
   stack {
     function.run exigir_admin {
-      input = {usuario_id: $auth.id}
+      input = {
+        usuario_id: $auth.id
+        emitido_em: ($auth.extras|get:"emitido_em")|first_notnull:0
+      }
     } as $ator
   
     var $papel {
@@ -99,6 +102,8 @@ query usuarios verb=GET {
                 unidade_vinculo_id: $conta.unidade_vinculo_id
                 unidade_nome      : $conta.unidade_nome
                 coordenacoes      : $coordenacoes_da_conta
+                admin_principal   : $conta.admin_principal == true
+                senha_provisoria  : $conta.senha_provisoria == true
               }
               ```
         }

@@ -13,6 +13,9 @@ table configuracao_geral {
   
     int? max_unidades_coordenador?
     int? max_pedidos_cadastro?
+  
+    // Máximo de administradores ativos, contando o principal
+    int? max_admins?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]

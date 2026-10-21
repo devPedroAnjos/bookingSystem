@@ -1,0 +1,30 @@
+// Parâmetros editáveis pelo admin principal (spec parametros; design.md da C3, D9).
+// Devolve os parâmetros atuais
+query parametros verb=GET {
+  api_group = "contas"
+  auth = "usuario"
+
+  input {
+  }
+
+  stack {
+    function.run exigir_principal {
+      input = {
+        usuario_id: $auth.id
+        emitido_em: ($auth.extras|get:"emitido_em")|first_notnull:0
+      }
+    } as $ator
+  
+    function.run obter_configuracao as $configuracao
+  }
+
+  response = {
+    dominios_email           : $configuracao.dominios_email
+    max_coordenadores_unidade: $configuracao.max_coordenadores_unidade
+    max_unidades_coordenador : $configuracao.max_unidades_coordenador
+    max_pedidos_cadastro     : $configuracao.max_pedidos_cadastro
+    max_admins               : $configuracao.max_admins
+  }
+
+  guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"
+}

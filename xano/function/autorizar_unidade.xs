@@ -5,11 +5,15 @@ function autorizar_unidade {
   input {
     int usuario_id
     int? unidade_id
+    int? emitido_em?
   }
 
   stack {
     function.run usuario_ativo {
-      input = {usuario_id: $input.usuario_id}
+      input = {
+        usuario_id: $input.usuario_id
+        emitido_em: $input.emitido_em
+      }
     } as $usuario
   
     var $autorizado {
