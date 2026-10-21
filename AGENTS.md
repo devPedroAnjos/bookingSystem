@@ -31,6 +31,18 @@ Se a tarefa contradizer esses documentos, **pare e pergunte**. Não escolha sozi
   - aumente o escopo da change.
 - Não modifique funcionalidades fora do escopo da change atual.
 
+### 2.1 Agente change-guardian
+
+O `change-guardian` (`.claude/agents/change-guardian.md`) é um agente **somente leitura**: lê arquivos, roda comandos git de leitura, consulta a documentação do Xano e testa o app, e responde às perguntas do agente principal. Ele não cria, edita nem apaga arquivos, não faz commit nem push e não altera o Xano. Quem grava qualquer arquivo é sempre o agente principal.
+
+- **MODO DECISÃO:** antes de fazer uma pergunta ao usuário durante explore ou apply, consulte o guardian. Ele responde com a decisão e uma classificação:
+  - `TRIVIAL` ou `VALIDADA`: siga com a decisão e registre-a no `decisions-log.md` da change.
+  - `PRECISA_HUMANO`: leve a pergunta ao usuário com as opções e a recomendação do guardian, e registre a resposta no `decisions-log.md`.
+- A consulta ao guardian **não dispensa** as interrupções desta seção e da seção 1: contradição com o domínio ou uma invariante, arquitetura ou tecnologia nova, decisão de negócio não documentada e aumento de escopo vão sempre ao usuário.
+- **MODO REVISÃO FINAL:** ao concluir o apply e antes de qualquer commit ou push da change, peça ao guardian o relatório de revisão e mostre-o ao usuário. O veredito do guardian não substitui a aprovação do usuário.
+- **`decisions-log.md`:** fica em `openspec/changes/<change>/`, ao lado de `proposal.md`, `design.md` e `tasks.md`, e vai junto para o archive. Uma linha por decisão: número, data, decisão, classificação, evidência e quem decidiu (guardian ou usuário). Como o Explore não cria arquivos, as decisões do explore são registradas quando a change é criada no propose.
+- O guardian só fica restrito à leitura se a pasta do projeto estiver marcada como confiável no Claude Code. Sem isso, o hook `.claude/hooks/guardian-somente-leitura.ps1` é ignorado sem aviso.
+
 ## 3. Arquitetura obrigatória
 
 | Camada | Tecnologia | Regra |
