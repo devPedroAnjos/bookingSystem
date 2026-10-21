@@ -8,9 +8,12 @@ import reflex as rx
 from bookingSystem.pages.administradores import administradores
 from bookingSystem.pages.aprovacoes import aprovacoes
 from bookingSystem.pages.cadastro import cadastro
+from bookingSystem.pages.espacos import espacos
 from bookingSystem.pages.inicio import inicio
 from bookingSystem.pages.login import login
 from bookingSystem.pages.parametros import parametros
+from bookingSystem.pages.recursos import recursos
+from bookingSystem.pages.tipos_espaco import tipos_espaco
 from bookingSystem.pages.trocar_senha import trocar_senha
 from bookingSystem.pages.unidades import unidades
 from bookingSystem.pages.usuarios import usuarios
@@ -22,8 +25,11 @@ from bookingSystem.state.auth_state import (
     AuthState,
 )
 from bookingSystem.state.contas_state import ContasState
+from bookingSystem.state.espacos_state import EspacosState
 from bookingSystem.state.parametros_state import ParametrosState
+from bookingSystem.state.recursos_state import RecursosState
 from bookingSystem.state.senha_state import SenhaState
+from bookingSystem.state.tipos_espaco_state import TiposEspacoState
 from bookingSystem.state.unidades_state import UnidadesState
 
 app = rx.App()
@@ -62,6 +68,24 @@ app.add_page(
     route="/unidades",
     title="Unidades | BookingSystem",
     on_load=[AuthState.exigir_admin, UnidadesState.abrir],
+)
+app.add_page(
+    espacos,
+    route="/espacos",
+    title="Espaços | BookingSystem",
+    on_load=[AuthState.exigir_gestor, EspacosState.abrir],
+)
+app.add_page(
+    tipos_espaco,
+    route="/tipos-espaco",
+    title="Tipos de espaço | BookingSystem",
+    on_load=[AuthState.exigir_admin, TiposEspacoState.abrir],
+)
+app.add_page(
+    recursos,
+    route="/recursos",
+    title="Recursos | BookingSystem",
+    on_load=[AuthState.exigir_admin, RecursosState.abrir],
 )
 app.add_page(
     trocar_senha,
