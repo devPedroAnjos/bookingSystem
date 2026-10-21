@@ -1,9 +1,9 @@
 // Carga inicial idempotente: configuração geral (com os parâmetros de coordenação, cadastro e
-// administradores), unidades iniciais, administrador inicial (principal), marca de principal no
-// admin já existente, linha de trava e pedidos_cadastro das contas antigas.
+// administradores), unidades iniciais, tipos de espaço iniciais, administrador inicial (principal),
+// marca de principal no admin já existente, linha de trava e pedidos_cadastro das contas antigas.
 // Executada manualmente depois do push. As credenciais do administrador vêm de variáveis
 // de ambiente do Xano e nunca são versionadas.
-// Cria a configuração, as unidades iniciais e o primeiro ADMIN, sem duplicar nada
+// Cria a configuração, as unidades e os tipos de espaço iniciais e o primeiro ADMIN, sem duplicar nada
 function bootstrap {
   input {
   }
@@ -39,17 +39,16 @@ function bootstrap {
     }
   
     var $resultado {
-      value = ```
-        {
-          configuracao_criada : false
-          parametros_ajustados: []
-          unidades_criadas    : []
-          admin_criado        : false
-          trava_criada        : false
-          contas_com_pedido_1 : 0
-          principal_marcado   : false
-        }
-        ```
+      value = {
+        configuracao_criada : false
+        parametros_ajustados: []
+        unidades_criadas    : []
+        tipos_criados       : []
+        admin_criado        : false
+        trava_criada        : false
+        contas_com_pedido_1 : 0
+        principal_marcado   : false
+      }
     }
   
     // Valores padrão dos parâmetros (domain-model.md, §2.18)
@@ -185,6 +184,40 @@ function bootstrap {
               
                 var.update $resultado.unidades_criadas {
                   value = $resultado.unidades_criadas|push:$unidade.nome
+                }
+              }
+            }
+          }
+        }
+      
+        // Tipos iniciais só com a tabela vazia, para não recriar um tipo renomeado (design D9)
+        db.query tipo_espaco {
+          return = {type: "count"}
+        } as $total_tipos
+      
+        conditional {
+          if ($total_tipos == 0) {
+            var $tipos_iniciais {
+              value = [
+                {nome: "Sala de aula", descricao: "Aulas e atividades em turma"}
+                {nome: "Laboratório", descricao: "Aulas práticas com equipamentos"}
+                {nome: "Biblioteca", descricao: "Estudo individual ou em grupo"}
+                {nome: "Auditório", descricao: "Palestras e eventos"}
+              ]
+            }
+          
+            foreach ($tipos_iniciais) {
+              each as $tipo {
+                db.add tipo_espaco {
+                  data = {
+                    nome     : $tipo.nome
+                    descricao: $tipo.descricao
+                    ativo    : true
+                  }
+                } as $tipo_criado
+              
+                var.update $resultado.tipos_criados {
+                  value = $resultado.tipos_criados|push:$tipo.nome
                 }
               }
             }
