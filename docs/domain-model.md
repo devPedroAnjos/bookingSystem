@@ -79,6 +79,7 @@ Campus ou prédio da instituição.
 - Coordenadores só visualizam e alteram dados (espaços, bloqueios, reservas pendentes, aprovação de professor) das unidades que coordenam.
 - Só o admin cria unidades, sempre com um coordenador (movido ou acrescentado), corrige nome e endereço (nome único sem diferenciar maiúsculas e minúsculas), desativa e reativa. Unidades nunca são excluídas.
 - Desativar uma unidade exige destino para cada coordenador que só coordena ela e para cada professor dela. Os pedidos pendentes dela são recusados automaticamente. Reativada, ela volta sem coordenadores e sem professores.
+- Desativar ou reativar a unidade não altera os espaços dela. Enquanto ela estiver desativada, os espaços não são reserváveis, e não se cria espaço nela.
 
 ### 2.3 Coordenação de Unidade (associativa)
 
@@ -103,6 +104,11 @@ Categoria de espaço com regras de uso próprias. Tipos iniciais: **Sala de aula
 
 **Relacionamentos:** classifica vários espaços; possui uma regra por papel (RegraPapel).
 
+**Regras estruturais:**
+- Qualquer admin cria, edita, desativa e reativa tipos. O nome é único, sem diferenciar maiúsculas e minúsculas. Tipos nunca são excluídos.
+- Desativar um tipo não altera os espaços dele, mas eles deixam de ser reserváveis. Um tipo desativado não pode ser escolhido para espaços novos nem para a troca de tipo.
+- Os tipos iniciais entram pela carga inicial. Nesta etapa (change `tipos-espacos-recursos`), o tipo tem só nome, descrição e situação; as regras de uso e a RegraPapel chegam na change de regras por tipo de espaço.
+
 ### 2.5 Regra por Papel (RegraPapel)
 
 Define, para um tipo de espaço e um papel, **se o papel pode reservar** e **se exige aprovação**.
@@ -124,11 +130,18 @@ Local físico reservável.
 
 **Relacionamentos:** pertence a uma unidade e a um tipo; dispõe de vários recursos; recebe reservas, bloqueios, séries e entradas de fila.
 
-**Regras estruturais:** espaço inativo não aparece na busca e não aceita novas reservas. Ele não é apagado se já tiver histórico.
+**Regras estruturais:**
+- O coordenador cria e edita espaços das unidades que coordena; o admin, de todas.
+- O código é único **dentro da unidade**, sem diferenciar maiúsculas e minúsculas, e vale também para espaços desativados.
+- Espaços nunca são excluídos: só desativados e reativados.
+- **Disponibilidade derivada:** o espaço só é reservável quando ele, a unidade dele e o tipo dele estão ativos. Espaço não reservável não aparece na busca e não aceita novas reservas.
+- Quem gere o espaço troca o tipo dele (só para tipo ativo). Só o admin move o espaço para outra unidade ativa, sem colisão de código no destino.
 
 ### 2.7 Recurso e Espaço-Recurso
 
 Recurso disponível em espaços (projetor, computadores, ar-condicionado, quadro digital etc.). A associação N:N registra a **quantidade** do recurso em cada espaço. Os recursos são usados como filtro na busca.
+
+**Regras estruturais:** o catálogo é global e mantido só pelo admin (nome único, sem diferenciar maiúsculas e minúsculas). Um recurso só é excluído quando nenhum espaço, ativo ou desativado, o usa. Quem gere o espaço define a lista de recursos dele, com quantidade de pelo menos 1 e sem repetição.
 
 ### 2.8 Bloqueio
 
@@ -480,7 +493,7 @@ erDiagram
         int unidade_id FK
         int tipo_espaco_id FK
         string nome
-        string codigo UK
+        string codigo "UK com unidade_id"
         int capacidade
         string localizacao
         string descricao
@@ -641,7 +654,10 @@ erDiagram
 |---|---|
 | `usuario` | `email` único; `unidade_vinculo_id` obrigatório no cadastro de professor e de coordenador e para professor ativo; `pedidos_cadastro` até o limite de `configuracao_geral` (exceto após recusa sem custo); exatamente um `admin_principal`; até `max_admins` contas `ADMIN` `ATIVA`; `sessoes_validas_desde` em milissegundos (epoch), comparado ao instante de emissão gravado no token. |
 | `coordenacao_unidade` | Único por (`usuario_id`, `unidade_id`); de 1 a `max_unidades_coordenador` por coordenador ativo; até `max_coordenadores_unidade` coordenadores ativos por unidade. |
+| `tipo_espaco` | `nome` único, sem diferenciar maiúsculas e minúsculas. Nunca excluído. |
 | `regra_papel` | Único por (`tipo_espaco_id`, `papel`). |
+| `espaco` | `codigo` único por (`unidade_id`, `codigo`), sem diferenciar maiúsculas e minúsculas; `capacidade >= 1`. Nunca excluído. |
+| `recurso` | `nome` único, sem diferenciar maiúsculas e minúsculas. Excluído só quando nenhum `espaco_recurso` o referencia. |
 | `espaco_recurso` | Único por (`espaco_id`, `recurso_id`); `quantidade >= 1`. |
 | `reserva` | `inicio < fim`. Sem sobreposição entre reservas ativas do mesmo espaço, nem com entrada de fila `NOTIFICADA` (exceto a reserva gerada pela própria entrada), garantida de forma atômica no backend. |
 | `bloqueio` | `inicio < fim`. |
@@ -654,6 +670,7 @@ erDiagram
 
 ### A.2 Índices recomendados
 
+- `espaco (unidade_id, codigo)` (único), `espaco (tipo_espaco_id)` e `espaco_recurso (recurso_id)`.
 - `reserva (espaco_id, inicio, fim, status)` — verificação de conflito e busca.
 - `reserva (usuario_id, status)` — "minhas reservas" e limite de reservas ativas.
 - `bloqueio (espaco_id, inicio, fim, status)`.

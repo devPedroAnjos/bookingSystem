@@ -40,7 +40,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 | **Aluno** | 1 (menor) | Busca espaços, reserva biblioteca e laboratório, cancela, faz check-in, avalia, entra em fila de espera. |
 | **Professor** | 2 | Tudo que o aluno faz, e também reserva sala de aula e auditório, inclusive reserva recorrente de sala de aula. |
 | **Coordenador de unidade** | 3 | Cadastra e edita espaços, bloqueia espaços (manutenção, evento, feriado), aprova ou recusa reservas pendentes e aprova cadastros de professor — **somente na(s) própria(s) unidade(s)**. Também pode reservar. |
-| **Administrador** | 3 | Define regras por tipo de espaço (os parâmetros gerais, só o principal), cria tipos de espaço, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
+| **Administrador** | 3 | Define regras por tipo de espaço (os parâmetros gerais, só o principal), cria tipos de espaço, mantém o catálogo de recursos, move espaços entre unidades, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
 
 - **Administradores:** até **3 ativos** (parâmetro), contando o **administrador principal** (o primeiro, criado na instalação). Só o principal cria administradores, do zero ou promovendo um coordenador (que perde as coordenações), rebaixa um administrador secundário (somente a coordenador) e altera os parâmetros gerais. Os secundários gerenciam as demais contas, mas não alteram outros administradores. Ninguém altera o principal pelo sistema.
 - **Coordenador:** coordena de **1 a 2 unidades** (parâmetro), e cada unidade tem **no máximo 4 coordenadores** (parâmetro). O administrador age em todas as unidades.
@@ -249,7 +249,7 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador e alterar parâmetros. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -261,10 +261,10 @@ Ordem das changes (ajustada durante os Explores):
 1. Fundação e autenticação: cadastro, login, auditoria e carga inicial (C1, `fundacao-autenticacao`).
 2. Coordenação e unidades: aprovação de professor e coordenador, reenvio de pedido, papéis, coordenação, gestão de unidades e autorização por unidade (C2, `coordenacao-unidades`).
 3. Contas, administradores e senha: administradores secundários, senha provisória, troca de senha, inativação de contas e tela de parâmetros (C3, `contas-admins-senha`).
-4. Tipos de espaço, espaços e recursos.
-5. Regras por tipo de espaço e busca de disponibilidade.
-6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2).
-7. Aprovação de reservas pendentes e expiração.
+4. Tipos de espaço, espaços e recursos: cadastro de tipos (só nome, descrição e situação), catálogo de recursos, espaços com código único por unidade, disponibilidade derivada e mudança de unidade pelo admin (C4, `tipos-espacos-recursos`).
+5. Regras por tipo de espaço e busca de disponibilidade. Pendências da C4: criar os campos de regra e a RegraPapel e definir como os tipos existentes recebem regras, sem depender do nome do tipo (o admin renomeia e cria tipos); tipo sem regras completas não é reservável; abrir a leitura de tipos ativos e recursos a alunos e professores; a busca mostra espaços de todas as unidades a todos os papéis e exibe o código junto com o nome da unidade; usar a disponibilidade derivada.
+6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2). Pendências da C4: decidir o efeito, sobre reservas e filas, de desativar um espaço, um tipo ou uma unidade e de mover um espaço de unidade; reler espaço, unidade e tipo dentro da trava antes de aplicar a disponibilidade.
+7. Aprovação de reservas pendentes e expiração. Pendência da C4: mover um espaço de unidade muda quem aprova as reservas pendentes dele.
 8. Prioridade, deslocamento e fila de espera.
 9. Cancelamento, check-in, faltas e penalidades (inclui contestação).
 10. Bloqueios.
