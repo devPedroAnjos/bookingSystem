@@ -5,6 +5,7 @@
 Definir o vínculo entre coordenadores e unidades e os limites que o protegem. A capability cobre quantas unidades cada coordenador e quantos coordenadores cada unidade podem ter, como o admin move e acrescenta coordenadores e o que acontece quando uma unidade fica sem coordenador ativo.
 
 ## Requirements
+
 ### Requirement: Limites da coordenação
 O sistema DEVE (MUST) manter estes limites, contando apenas coordenadores com conta `ATIVA`:
 - todo coordenador `ATIVA` coordena no mínimo 1 unidade e no máximo o valor de `ConfiguracaoGeral` (padrão: 2);
@@ -70,7 +71,8 @@ O admin DEVE (MUST) poder remover uma das unidades de um coordenador que coorden
 ### Requirement: Unidade sem coordenador ativo
 O sistema DEVE (MUST) permitir que uma unidade fique sem coordenador ativo apenas:
 - antes de o primeiro coordenador ser aprovado ou atribuído;
-- depois que o último coordenador sair por mudança de papel;
+- depois que o último coordenador sair por mudança de papel, inclusive pela promoção a admin;
+- depois que o último coordenador ativo for inativado;
 - depois de ser reativada.
 
 Nesse estado, o admin age sobre a unidade normalmente. A tela de unidades DEVE destacar as unidades sem coordenador ativo.
@@ -85,6 +87,11 @@ Nesse estado, o admin age sobre a unidade normalmente. A tela de unidades DEVE d
 - **GIVEN** "Paulista" não tem coordenador ativo e há um professor pendente em "Paulista"
 - **WHEN** o admin consulta os pedidos pendentes
 - **THEN** o pedido aparece e o admin pode decidi-lo
+
+#### Scenario: Último coordenador inativado
+- **GIVEN** Rui é o único coordenador ativo de "Paulista"
+- **WHEN** um admin inativa a conta de Rui
+- **THEN** "Paulista" fica sem coordenador ativo e é destacada na tela de unidades
 
 ### Requirement: Telas de coordenação
 A página de unidades DEVE (MUST) mostrar os coordenadores de cada unidade. Nela o admin acrescenta, move e remove coordenações, escolhendo entre os coordenadores ativos. A página DEVE mostrar a mensagem da API depois de cada ação e recarregar a lista.
