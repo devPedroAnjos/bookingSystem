@@ -124,6 +124,17 @@ async def obter_usuario_atual(token: str) -> dict[str, Any]:
     )
 
 
+async def trocar_senha(
+    token: str, senha_atual: str, nova_senha: str
+) -> dict[str, Any]:
+    """Troca a própria senha. Devolve a mensagem e o token novo.
+
+    Os tokens anteriores da conta deixam de valer.
+    """
+    dados = {"senha_atual": senha_atual, "nova_senha": nova_senha}
+    return await _requisitar("POST", _url(_AUTH, "trocar_senha"), token, dados)
+
+
 async def listar_unidades_ativas() -> list[dict[str, Any]]:
     """Lista pública das unidades ativas (id e nome), ordenada por nome."""
     return await _requisitar("GET", _url(_UNIDADES, "ativas"))
@@ -223,6 +234,93 @@ async def transferir_professor(
     dados = {"usuario_id": usuario_id, "unidade_id": unidade_id}
     return await _requisitar(
         "POST", _url(_CONTAS, "transferir_professor"), token, dados
+    )
+
+
+# ---------- Contas: senha e situação ----------
+
+
+async def redefinir_senha(
+    token: str, usuario_id: int, senha_provisoria: str
+) -> dict[str, Any]:
+    """Define uma senha provisória; as sessões do titular caem."""
+    dados = {"usuario_id": usuario_id, "senha_provisoria": senha_provisoria}
+    return await _requisitar(
+        "POST", _url(_CONTAS, "redefinir_senha"), token, dados
+    )
+
+
+async def inativar_conta(
+    token: str, usuario_id: int, motivo: str
+) -> dict[str, Any]:
+    """Inativa uma conta ativa; o motivo fica só na auditoria."""
+    dados = {"usuario_id": usuario_id, "motivo": motivo}
+    return await _requisitar("POST", _url(_CONTAS, "inativar"), token, dados)
+
+
+async def reativar_conta(
+    token: str,
+    usuario_id: int,
+    unidades_ids: list[int] | None = None,
+    unidade_id: int | None = None,
+) -> dict[str, Any]:
+    """Reativa uma conta inativa.
+
+    Coordenador sem unidade válida exige unidades; professor com unidade
+    desativada exige a nova unidade.
+    """
+    dados: dict[str, Any] = {"usuario_id": usuario_id}
+    if unidades_ids is not None:
+        dados["unidades_ids"] = unidades_ids
+    if unidade_id is not None:
+        dados["unidade_id"] = unidade_id
+    return await _requisitar("POST", _url(_CONTAS, "reativar"), token, dados)
+
+
+# ---------- Contas: administradores e parâmetros (admin principal) ----------
+
+
+async def listar_admins(token: str) -> list[dict[str, Any]]:
+    """Administradores, ativos e inativos, com o principal identificado."""
+    return await _requisitar("GET", _url(_CONTAS, "admins"), token)
+
+
+async def promover_admin(token: str, usuario_id: int) -> dict[str, Any]:
+    """Promove um coordenador ativo; as coordenações dele são removidas."""
+    return await _requisitar(
+        "POST", _url(_CONTAS, "promover_admin"), token, {"usuario_id": usuario_id}
+    )
+
+
+async def criar_admin(
+    token: str, nome: str, email: str, senha_provisoria: str
+) -> dict[str, Any]:
+    """Cria um admin secundário com senha provisória."""
+    dados = {"nome": nome, "email": email, "senha_provisoria": senha_provisoria}
+    return await _requisitar("POST", _url(_CONTAS, "criar_admin"), token, dados)
+
+
+async def rebaixar_admin(
+    token: str, usuario_id: int, unidades_ids: list[int]
+) -> dict[str, Any]:
+    """Rebaixa um admin secundário a coordenador das unidades escolhidas."""
+    dados = {"usuario_id": usuario_id, "unidades_ids": unidades_ids}
+    return await _requisitar(
+        "POST", _url(_CONTAS, "rebaixar_admin"), token, dados
+    )
+
+
+async def obter_parametros(token: str) -> dict[str, Any]:
+    """Domínios de e-mail e limites atuais."""
+    return await _requisitar("GET", _url(_CONTAS, "parametros"), token)
+
+
+async def salvar_parametros(
+    token: str, parametros: dict[str, Any]
+) -> dict[str, Any]:
+    """Grava todos os parâmetros de uma vez (domínios e limites)."""
+    return await _requisitar(
+        "POST", _url(_CONTAS, "parametros"), token, parametros
     )
 
 

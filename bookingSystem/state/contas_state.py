@@ -6,6 +6,11 @@ Só usabilidade: quem decide papel, escopo, limites e corrida é o Xano.
 import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
+from bookingSystem.state.acoes_conta import (
+    AcoesContaMixin,
+    sim_nao,
+    unidades_escolhidas,
+)
 from bookingSystem.state.auth_state import (
     NOMES_PAPEIS,
     AuthState,
@@ -42,7 +47,7 @@ def _pedido_para_tela(pedido: dict) -> dict[str, str]:
 
 
 def _usuario_para_tela(usuario: dict) -> dict[str, str]:
-    coordena = [c["nome"] for c in usuario.get("coordenacoes") or []]
+    coordenacoes = usuario.get("coordenacoes") or []
     return {
         "id": str(usuario["id"]),
         "nome": usuario["nome"],
@@ -52,24 +57,26 @@ def _usuario_para_tela(usuario: dict) -> dict[str, str]:
         "situacao": NOMES_SITUACOES.get(
             usuario["status_conta"], usuario["status_conta"]
         ),
-        "ativa": "sim" if usuario["status_conta"] == "ATIVA" else "nao",
+        "ativa": sim_nao(usuario["status_conta"] == "ATIVA"),
+        "inativa": sim_nao(usuario["status_conta"] == "INATIVA"),
+        "principal": sim_nao(usuario.get("admin_principal")),
+        "senha_provisoria": sim_nao(usuario.get("senha_provisoria")),
         "unidade": usuario.get("unidade_nome") or "",
-        "coordena": ", ".join(coordena),
+        "unidade_id": str(usuario.get("unidade_vinculo_id") or ""),
+        "coordena": ", ".join(c["nome"] for c in coordenacoes),
+        "coordena_ids": ",".join(str(c["unidade_id"]) for c in coordenacoes),
     }
 
 
-class ContasState(rx.State):
-    """Pedidos de cadastro, decisões, usuários, papéis e transferência."""
+class ContasState(AcoesContaMixin, rx.State):
+    """Pedidos, decisões, usuários, papéis, transferência e situação de conta."""
 
     pedidos: list[dict[str, str]] = []
     recusadas: list[dict[str, str]] = []
     usuarios: list[dict[str, str]] = []
-    unidades_ativas: list[dict[str, str]] = []
     filtro_papel: str = ""
     filtro_situacao: str = ""
     filtro_busca: str = ""
-    mensagem_erro: str = ""
-    mensagem_sucesso: str = ""
 
     # Diálogo de recusa
     recusa_aberta: bool = False
@@ -89,15 +96,8 @@ class ContasState(rx.State):
     transferencia_id: str = ""
     transferencia_nome: str = ""
 
-    def _limpar_mensagens(self):
-        self.mensagem_erro = ""
-        self.mensagem_sucesso = ""
-
-    async def _carregar_unidades_ativas(self):
-        unidades = await api.listar_unidades_ativas()
-        self.unidades_ativas = [
-            {"id": str(u["id"]), "nome": u["nome"]} for u in unidades
-        ]
+    def _recarregar(self):
+        return ContasState.carregar_usuarios
 
     # ---------- aprovações ----------
 
@@ -215,11 +215,7 @@ class ContasState(rx.State):
     async def confirmar_papel(self, dados: dict):
         self._limpar_mensagens()
         if self.papel_novo == "COORDENADOR":
-            escolhidas = {
-                str(dados.get(campo, "") or "")
-                for campo in ("unidade1", "unidade2")
-            }
-            unidades_ids = sorted(int(u) for u in escolhidas if u.isdigit())
+            unidades_ids = unidades_escolhidas(dados)
             if not unidades_ids:
                 self.mensagem_erro = "Escolha ao menos uma unidade."
                 return
@@ -238,13 +234,7 @@ class ContasState(rx.State):
             )
         except api.ErroApi as erro:
             return await tratar_erro_api(self, erro)
-        removidas = [c["nome"] for c in resposta.get("coordenacoes_removidas", [])]
-        self.mensagem_sucesso = resposta["mensagem"]
-        if removidas:
-            self.mensagem_sucesso += (
-                " Deixou de coordenar: " + ", ".join(removidas) + "."
-            )
-        return ContasState.carregar_usuarios
+        return self._mostrar_resposta(resposta)
 
     @rx.event
     def abrir_transferencia(self, usuario_id: str, nome: str):

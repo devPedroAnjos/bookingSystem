@@ -10,6 +10,13 @@ def mensagem(texto: rx.Var[str], cor: str) -> rx.Component:
     )
 
 
+def campo_senha(nome: str, placeholder: str) -> rx.Component:
+    """Campo de senha de formulário (o valor não passa pelo State)."""
+    return rx.input(
+        name=nome, type="password", placeholder=placeholder, width="100%"
+    )
+
+
 def cartao(*filhos: rx.Component) -> rx.Component:
     """Cartão centralizado usado nas páginas de formulário."""
     return rx.center(
