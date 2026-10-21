@@ -20,8 +20,13 @@ def menu() -> rx.Component:
         rx.hstack(
             item_menu("Início", "/inicio"),
             rx.cond(AuthState.e_gestor, item_menu("Aprovações", "/aprovacoes")),
+            rx.cond(AuthState.e_gestor, item_menu("Espaços", "/espacos")),
             rx.cond(AuthState.e_admin, item_menu("Usuários", "/usuarios")),
             rx.cond(AuthState.e_admin, item_menu("Unidades", "/unidades")),
+            rx.cond(
+                AuthState.e_admin, item_menu("Tipos de espaço", "/tipos-espaco")
+            ),
+            rx.cond(AuthState.e_admin, item_menu("Recursos", "/recursos")),
             rx.cond(
                 AuthState.e_principal,
                 item_menu("Administradores", "/administradores"),

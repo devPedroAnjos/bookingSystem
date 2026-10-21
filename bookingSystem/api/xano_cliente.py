@@ -48,6 +48,7 @@ _ERROS_POR_STATUS = {
 _AUTH = "XANO_API_AUTH_URL"
 _UNIDADES = "XANO_API_UNIDADES_URL"
 _CONTAS = "XANO_API_CONTAS_URL"
+_ESPACOS = "XANO_API_ESPACOS_URL"
 
 
 def _url(variavel: str, rota: str) -> str:
@@ -415,4 +416,165 @@ async def remover_coordenador(
     dados = {"usuario_id": usuario_id, "unidade_id": unidade_id}
     return await _requisitar(
         "POST", _url(_UNIDADES, "remover_coordenador"), token, dados
+    )
+
+
+# ---------- Tipos de espaço ----------
+
+
+async def listar_tipos_espaco(token: str) -> list[dict[str, Any]]:
+    """Tipos de espaço; para o admin, com espaços ativos e unidades."""
+    return await _requisitar("GET", _url(_ESPACOS, "tipos"), token)
+
+
+async def criar_tipo_espaco(
+    token: str, nome: str, descricao: str
+) -> dict[str, Any]:
+    """Cria um tipo de espaço ativo."""
+    dados = {"nome": nome, "descricao": descricao}
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "criar_tipo"), token, dados
+    )
+
+
+async def editar_tipo_espaco(
+    token: str, tipo_espaco_id: int, nome: str, descricao: str
+) -> dict[str, Any]:
+    """Corrige nome e descrição de um tipo de espaço."""
+    dados = {
+        "tipo_espaco_id": tipo_espaco_id,
+        "nome": nome,
+        "descricao": descricao,
+    }
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "editar_tipo"), token, dados
+    )
+
+
+async def desativar_tipo_espaco(
+    token: str, tipo_espaco_id: int
+) -> dict[str, Any]:
+    """Desativa o tipo; os espaços dele deixam de ser reserváveis."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "desativar_tipo"),
+        token,
+        {"tipo_espaco_id": tipo_espaco_id},
+    )
+
+
+async def reativar_tipo_espaco(
+    token: str, tipo_espaco_id: int
+) -> dict[str, Any]:
+    """Reativa um tipo de espaço desativado."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "reativar_tipo"),
+        token,
+        {"tipo_espaco_id": tipo_espaco_id},
+    )
+
+
+# ---------- Catálogo de recursos ----------
+
+
+async def listar_recursos(token: str) -> list[dict[str, Any]]:
+    """Catálogo de recursos; para o admin, com quantos espaços usam cada um."""
+    return await _requisitar("GET", _url(_ESPACOS, "recursos"), token)
+
+
+async def criar_recurso(token: str, nome: str) -> dict[str, Any]:
+    """Cria um recurso no catálogo."""
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "criar_recurso"), token, {"nome": nome}
+    )
+
+
+async def editar_recurso(
+    token: str, recurso_id: int, nome: str
+) -> dict[str, Any]:
+    """Renomeia um recurso; vale para todos os espaços que o têm."""
+    dados = {"recurso_id": recurso_id, "nome": nome}
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "editar_recurso"), token, dados
+    )
+
+
+async def excluir_recurso(token: str, recurso_id: int) -> dict[str, Any]:
+    """Exclui um recurso que nenhum espaço usa."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "excluir_recurso"),
+        token,
+        {"recurso_id": recurso_id},
+    )
+
+
+# ---------- Espaços ----------
+
+
+async def listar_espacos_geridos(token: str) -> list[dict[str, Any]]:
+    """Espaços no escopo do usuário, com recursos e disponibilidade."""
+    return await _requisitar("GET", _url(_ESPACOS, "geridos"), token)
+
+
+async def criar_espaco(token: str, dados: dict[str, Any]) -> dict[str, Any]:
+    """Cria um espaço ativo e sem recursos.
+
+    `dados`: unidade_id, tipo_espaco_id, nome, codigo, capacidade,
+    localizacao e descricao.
+    """
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "criar_espaco"), token, dados
+    )
+
+
+async def editar_espaco(token: str, dados: dict[str, Any]) -> dict[str, Any]:
+    """Edita um espaço; não muda unidade nem situação.
+
+    `dados`: espaco_id, tipo_espaco_id, nome, codigo, capacidade,
+    localizacao e descricao.
+    """
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "editar_espaco"), token, dados
+    )
+
+
+async def definir_recursos_espaco(
+    token: str, espaco_id: int, recursos: list[dict[str, int]]
+) -> dict[str, Any]:
+    """Substitui a lista de recursos (recurso_id e quantidade) do espaço."""
+    dados = {"espaco_id": espaco_id, "recursos": recursos}
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "definir_recursos"), token, dados
+    )
+
+
+async def desativar_espaco(token: str, espaco_id: int) -> dict[str, Any]:
+    """Desativa um espaço ativo."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "desativar_espaco"),
+        token,
+        {"espaco_id": espaco_id},
+    )
+
+
+async def reativar_espaco(token: str, espaco_id: int) -> dict[str, Any]:
+    """Reativa um espaço desativado."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "reativar_espaco"),
+        token,
+        {"espaco_id": espaco_id},
+    )
+
+
+async def mover_espaco(
+    token: str, espaco_id: int, unidade_id: int
+) -> dict[str, Any]:
+    """Move o espaço para outra unidade ativa (só admin)."""
+    dados = {"espaco_id": espaco_id, "unidade_id": unidade_id}
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "mover_espaco"), token, dados
     )

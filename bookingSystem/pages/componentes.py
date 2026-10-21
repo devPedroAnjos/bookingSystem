@@ -35,8 +35,10 @@ def seletor(
     opcoes: rx.Var[list[dict[str, str]]],
     placeholder: str | rx.Var[str],
     rotulo: str = "nome",
+    valor_inicial: str | rx.Var[str] | None = None,
 ) -> rx.Component:
     """Select de formulário a partir de uma lista de {id, nome}."""
+    extras = {} if valor_inicial is None else {"default_value": valor_inicial}
     return rx.select.root(
         rx.select.trigger(placeholder=placeholder, width="100%"),
         rx.select.content(
@@ -46,6 +48,7 @@ def seletor(
             ),
         ),
         name=nome,
+        **extras,
     )
 
 
@@ -56,8 +59,13 @@ def dialogo(
     ao_enviar,
     *campos: rx.Component,
     botao: str = "Confirmar",
+    limpar_ao_enviar: bool = True,
 ) -> rx.Component:
-    """Diálogo controlado pelo State, com um formulário e Cancelar/Confirmar."""
+    """Diálogo controlado pelo State, com um formulário e Cancelar/Confirmar.
+
+    Com limpar_ao_enviar=False, um erro de validação mantém o que foi digitado
+    (o conteúdo é remontado a cada abertura, então não fica valor antigo).
+    """
     return rx.dialog.root(
         rx.dialog.content(
             rx.dialog.title(titulo),
@@ -76,7 +84,7 @@ def dialogo(
                     width="100%",
                 ),
                 on_submit=ao_enviar,
-                reset_on_submit=True,
+                reset_on_submit=limpar_ao_enviar,
                 width="100%",
             ),
         ),
