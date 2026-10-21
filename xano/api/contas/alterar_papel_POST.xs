@@ -49,7 +49,10 @@ query alterar_papel verb=POST {
       stack {
         function.run travar_governanca as $trava
         function.run exigir_admin {
-          input = {usuario_id: $auth.id}
+          input = {
+            usuario_id: $auth.id
+            emitido_em: ($auth.extras|get:"emitido_em")|first_notnull:0
+          }
         } as $ator
       
         db.get usuario {

@@ -12,7 +12,10 @@ query pedidos verb=GET {
 
   stack {
     function.run usuario_ativo {
-      input = {usuario_id: $auth.id}
+      input = {
+        usuario_id: $auth.id
+        emitido_em: ($auth.extras|get:"emitido_em")|first_notnull:0
+      }
     } as $ator
   
     precondition ($input.situacao == "PENDENTE" || $input.situacao == "RECUSADA") {

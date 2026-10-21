@@ -10,7 +10,7 @@ function obter_configuracao {
       return = {type: "single"}
     } as $configuracao
   
-    precondition ($configuracao != null && $configuracao.max_coordenadores_unidade != null && $configuracao.max_unidades_coordenador != null && $configuracao.max_pedidos_cadastro != null) {
+    precondition ($configuracao != null && $configuracao.max_coordenadores_unidade != null && $configuracao.max_unidades_coordenador != null && $configuracao.max_pedidos_cadastro != null && $configuracao.max_admins != null) {
       error = "Configuração incompleta: execute o bootstrap."
     }
   }

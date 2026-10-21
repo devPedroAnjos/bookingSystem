@@ -1,8 +1,12 @@
-"""Página de usuários (só administrador): filtros, papel e transferência."""
+"""Página de usuários (só administrador).
+
+Filtros, papel, transferência, inativação, reativação e redefinição de senha.
+"""
 
 import reflex as rx
 
 from bookingSystem.pages.componentes import dialogo, mensagem, seletor
+from bookingSystem.pages.dialogos_conta import dialogos_situacao
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.auth_state import AuthState
 from bookingSystem.state.contas_state import ContasState
@@ -49,6 +53,10 @@ def filtros() -> rx.Component:
 
 def acoes(usuario: rx.Var[dict[str, str]]) -> rx.Component:
     ativa = usuario["ativa"] == "sim"
+    # Ninguém age sobre o principal; sobre outros admins, só o principal (D5)
+    pode_agir = (usuario["principal"] != "sim") & (
+        (usuario["papel"] != "ADMIN") | AuthState.e_principal
+    )
     return rx.hstack(
         rx.cond(
             ativa & (usuario["papel"] != "ADMIN"),
@@ -69,7 +77,49 @@ def acoes(usuario: rx.Var[dict[str, str]]) -> rx.Component:
                 ),
             ),
         ),
+        rx.cond(
+            ativa & pode_agir,
+            rx.button(
+                "Redefinir senha",
+                size="1",
+                variant="soft",
+                on_click=ContasState.abrir_redefinicao(usuario),
+            ),
+        ),
+        rx.cond(
+            ativa & pode_agir,
+            rx.button(
+                "Inativar",
+                size="1",
+                variant="soft",
+                color_scheme="red",
+                on_click=ContasState.abrir_inativacao(usuario),
+            ),
+        ),
+        rx.cond(
+            (usuario["inativa"] == "sim") & pode_agir,
+            rx.button(
+                "Reativar",
+                size="1",
+                color_scheme="green",
+                on_click=ContasState.abrir_reativacao(usuario),
+            ),
+        ),
         spacing="2",
+        wrap="wrap",
+    )
+
+
+def situacao(usuario: rx.Var[dict[str, str]]) -> rx.Component:
+    return rx.hstack(
+        rx.text(usuario["situacao"]),
+        rx.cond(usuario["principal"] == "sim", rx.badge("Principal")),
+        rx.cond(
+            usuario["senha_provisoria"] == "sim",
+            rx.badge("Senha provisória", color_scheme="orange"),
+        ),
+        spacing="2",
+        wrap="wrap",
     )
 
 
@@ -78,7 +128,7 @@ def linha_usuario(usuario: rx.Var[dict[str, str]]) -> rx.Component:
         rx.table.cell(usuario["nome"]),
         rx.table.cell(usuario["email"]),
         rx.table.cell(usuario["papel_nome"]),
-        rx.table.cell(usuario["situacao"]),
+        rx.table.cell(situacao(usuario)),
         rx.table.cell(
             rx.cond(
                 usuario["papel"] == "COORDENADOR",
@@ -162,5 +212,6 @@ def usuarios() -> rx.Component:
         ),
         dialogo_papel(),
         dialogo_transferencia(),
+        dialogos_situacao(ContasState),
         permitido=AuthState.e_admin,
     )

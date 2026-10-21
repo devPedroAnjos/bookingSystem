@@ -40,13 +40,14 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 | **Aluno** | 1 (menor) | Busca espaços, reserva biblioteca e laboratório, cancela, faz check-in, avalia, entra em fila de espera. |
 | **Professor** | 2 | Tudo que o aluno faz, e também reserva sala de aula e auditório, inclusive reserva recorrente de sala de aula. |
 | **Coordenador de unidade** | 3 | Cadastra e edita espaços, bloqueia espaços (manutenção, evento, feriado), aprova ou recusa reservas pendentes e aprova cadastros de professor — **somente na(s) própria(s) unidade(s)**. Também pode reservar. |
-| **Administrador** | 3 | Define regras por tipo de espaço e parâmetros gerais, cria tipos de espaço, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
+| **Administrador** | 3 | Define regras por tipo de espaço (os parâmetros gerais, só o principal), cria tipos de espaço, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
 
+- **Administradores:** até **3 ativos** (parâmetro), contando o **administrador principal** (o primeiro, criado na instalação). Só o principal cria administradores, do zero ou promovendo um coordenador (que perde as coordenações), rebaixa um administrador secundário (somente a coordenador) e altera os parâmetros gerais. Os secundários gerenciam as demais contas, mas não alteram outros administradores. Ninguém altera o principal pelo sistema.
 - **Coordenador:** coordena de **1 a 2 unidades** (parâmetro), e cada unidade tem **no máximo 4 coordenadores** (parâmetro). O administrador age em todas as unidades.
 - **Professor:** **pertence a uma unidade**, escolhida no cadastro. Ela serve para aprovação e pertencimento, e só o administrador transfere o professor para outra unidade (o pedido de transferência acontece fora do sistema).
 - **Aluno:** pertence à instituição, e não a uma unidade.
 - **Reservas:** alunos e professores podem reservar espaços de qualquer unidade.
-- **Mudança de papel:** segue a sequência **aluno → professor → coordenador**; coordenador pode voltar a professor, e ninguém volta a ser aluno. Virar coordenador exige escolher as unidades no mesmo ato, e deixar de ser coordenador remove as coordenações.
+- **Mudança de papel:** segue a sequência **aluno → professor → coordenador**; coordenador pode voltar a professor, e ninguém volta a ser aluno. Virar coordenador exige escolher as unidades no mesmo ato, e deixar de ser coordenador remove as coordenações. Um administrador secundário só é rebaixado a coordenador; depois disso, pode virar professor pela mudança de papel comum.
 
 ## 5. Escopo
 
@@ -72,6 +73,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 - Notificação por e-mail, SMS ou push (prevista como evolução).
 - Integração com calendário externo (Google/Outlook).
 - Login social ou SSO institucional.
+- Recuperação de senha por e-mail ("esqueci minha senha"). A pessoa pede a um administrador que redefina a senha.
 - Aplicativo mobile nativo.
 - Reserva de equipamentos avulsos (apenas de espaços).
 - Reserva fora do horário de funcionamento ou em finais de semana.
@@ -193,7 +195,9 @@ O administrador também configura, por tipo: duração máxima, antecedência m�
   - Enquanto pendente, a conta não acessa o sistema.
 - A **recusa exige motivo**, que a pessoa vê ao tentar entrar com a senha correta. Ela pode **pedir nova análise**, trocando a unidade e o papel pedido (professor ou coordenador), até o limite de **3 pedidos** (parâmetro). Esgotados os pedidos, só o administrador pode aprovar a conta.
 - Ao **desativar uma unidade**, os pedidos pendentes dela são recusados automaticamente e essa recusa **não consome pedido**.
-- O papel de administrador é atribuído apenas pelo administrador. O cadastro público nunca concede o papel de administrador.
+- O papel de administrador é atribuído apenas pelo administrador principal. O cadastro público nunca concede o papel de administrador.
+- **Inativação:** um administrador inativa uma conta ativa informando um motivo, que fica só no log de auditoria. A pessoa perde o acesso na hora, e as coordenações dela ficam guardadas. Na **reativação**, o sistema mantém só as coordenações em unidades ativas e com vaga, pede nova unidade ao professor cuja unidade foi desativada e respeita o limite de administradores.
+- **Senha:** todo usuário pode **trocar a própria senha**. O administrador pode **redefinir** a senha de uma conta (os secundários, só de contas que não são de administrador). A senha redefinida é **provisória**: no acesso seguinte, a pessoa só consegue trocá-la antes de usar o sistema. Administradores criados pelo principal também começam com senha provisória.
 
 ### 7.11 Notificações
 
@@ -240,11 +244,12 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 ## 10. Segurança e integridade
 
 - Autenticação por token (JWT do Xano). Senhas armazenadas apenas como hash.
+- Trocar ou redefinir a senha **encerra as sessões abertas** da conta: os tokens emitidos antes deixam de valer.
 - Todas as rotas da API do Xano exigem autenticação, exceto cadastro, login e a listagem pública de unidades ativas (somente id e nome) usada no formulário de cadastro.
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade e aprovar cadastro.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador e alterar parâmetros. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.

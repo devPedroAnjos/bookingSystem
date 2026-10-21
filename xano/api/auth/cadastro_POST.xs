@@ -58,34 +58,9 @@ query cadastro verb=POST {
     }
   
     // Domínio: exatamente um dos domínios aceitos em configuracao_geral
-    var $partes_email {
-      value = $email|split:"@"
-    }
-  
-    var $dominio {
-      value = $partes_email|last
-    }
-  
-    db.query configuracao_geral {
-      return = {type: "single"}
-    } as $configuracao
-  
-    precondition ($configuracao != null) {
-      error = "Não foi possível concluir o cadastro. Tente novamente mais tarde."
-    }
-  
-    var $dominios_aceitos {
-      value = ($configuracao.dominios_email|join:",")|to_lower|split:","
-    }
-  
-    var $dominio_aceito {
-      value = $dominios_aceitos|some:$$ == $dominio
-    }
-  
-    precondition (($partes_email|count) == 2 && (($partes_email|first)|strlen) > 0 && $dominio_aceito) {
-      error_type = "inputerror"
-      error = "Use seu e-mail institucional."
-    }
+    function.run validar_email_institucional {
+      input = {email: $email}
+    } as $email_valido
   
     // Professor e coordenador: unidade pedida existente e ativa. Para aluno, a unidade é ignorada.
     var $unidade_vinculo_id {

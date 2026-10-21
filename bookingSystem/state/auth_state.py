@@ -12,7 +12,10 @@ from bookingSystem.state.pedido_state import PedidoState
 
 ROTA_LOGIN = "/login"
 ROTA_INICIO = "/inicio"
+ROTA_TROCAR_SENHA = "/trocar-senha"
 AVISO_SESSAO_EXPIRADA = "Sua sessão expirou. Entre novamente."
+# Resposta 403 do Xano para quem ainda tem senha provisória (design.md da C3, D4)
+MENSAGEM_TROQUE_SENHA = "Troque sua senha para continuar."
 
 NOMES_PAPEIS = {
     "ALUNO": "Aluno",
@@ -28,6 +31,8 @@ class AuthState(rx.State):
     _token: str = ""
     nome: str = ""
     papel: str = ""
+    admin_principal: bool = False
+    senha_provisoria: bool = False
     mensagem_erro: str = ""
     mensagem_sucesso: str = ""
     aviso: str = ""
@@ -47,10 +52,28 @@ class AuthState(rx.State):
         """Admin ou coordenador: quem vê a área de aprovações."""
         return self.papel in ("ADMIN", "COORDENADOR")
 
+    @rx.var
+    def e_principal(self) -> bool:
+        """Admin principal: o único que vê administradores e parâmetros."""
+        return self.papel == "ADMIN" and self.admin_principal
+
+    def _guardar_usuario(self, usuario: dict):
+        self.nome = usuario["nome"]
+        self.papel = usuario["papel"]
+        self.admin_principal = bool(usuario.get("admin_principal"))
+        self.senha_provisoria = bool(usuario.get("senha_provisoria"))
+
+    def _renovar_token(self, token: str):
+        """Troca o token da sessão pelo emitido após a troca de senha."""
+        self._token = token
+        self.senha_provisoria = False
+
     def _limpar_sessao(self):
         self._token = ""
         self.nome = ""
         self.papel = ""
+        self.admin_principal = False
+        self.senha_provisoria = False
 
     def _sessao_expirada(self):
         self._limpar_sessao()
@@ -91,9 +114,10 @@ class AuthState(rx.State):
             return
 
         self._token = sessao["token"]
-        self.nome = sessao["usuario"]["nome"]
-        self.papel = sessao["usuario"]["papel"]
+        self._guardar_usuario(sessao["usuario"])
         self.aviso = ""
+        if self.senha_provisoria:
+            return rx.redirect(ROTA_TROCAR_SENHA)
         return rx.redirect(ROTA_INICIO)
 
     @rx.event
@@ -140,10 +164,11 @@ class AuthState(rx.State):
             return
         self.mensagem_sucesso = resposta["mensagem"]
 
-    async def _atualizar_sessao(self):
-        """Confere a sessão no Xano e atualiza nome e papel.
+    async def _atualizar_sessao(self, permite_senha_provisoria: bool = False):
+        """Confere a sessão no Xano e atualiza os dados do usuário.
 
-        Devolve o redirecionamento quando não há sessão válida.
+        Devolve o redirecionamento quando não há sessão válida ou quando a
+        senha provisória ainda precisa ser trocada.
         """
         if not self._token:
             return rx.redirect(ROTA_LOGIN)
@@ -154,8 +179,9 @@ class AuthState(rx.State):
         except api.ErroApi as erro:
             self.mensagem_erro = erro.mensagem
             return None
-        self.nome = usuario["nome"]
-        self.papel = usuario["papel"]
+        self._guardar_usuario(usuario)
+        if self.senha_provisoria and not permite_senha_provisoria:
+            return rx.redirect(ROTA_TROCAR_SENHA)
         return None
 
     @rx.event
@@ -165,6 +191,11 @@ class AuthState(rx.State):
         É só usabilidade: a segurança está no Xano.
         """
         return await self._atualizar_sessao()
+
+    @rx.event
+    async def verificar_sessao_troca_senha(self):
+        """Guarda da página de troca de senha, aberta também com senha provisória."""
+        return await self._atualizar_sessao(permite_senha_provisoria=True)
 
     @rx.event
     async def exigir_gestor(self):
@@ -185,6 +216,15 @@ class AuthState(rx.State):
             return rx.redirect(ROTA_INICIO)
 
     @rx.event
+    async def exigir_principal(self):
+        """Guarda das páginas só do admin principal (usabilidade)."""
+        redirecionamento = await self._atualizar_sessao()
+        if redirecionamento is not None:
+            return redirecionamento
+        if not self.e_principal:
+            return rx.redirect(ROTA_INICIO)
+
+    @rx.event
     def sair(self):
         self._limpar_sessao()
         self.aviso = ""
@@ -200,12 +240,17 @@ async def token_da_sessao(estado: rx.State) -> str:
 async def tratar_erro_api(estado: rx.State, erro: api.ErroApi):
     """Tratamento comum dos States de gestão.
 
-    Sessão inválida volta ao login; acesso negado volta ao início;
-    os demais erros viram a mensagem da página.
+    Sessão inválida volta ao login; senha provisória vai para a troca de
+    senha; acesso negado volta ao início; os demais erros viram a mensagem
+    da página.
     """
     if isinstance(erro, api.NaoAutenticado):
         auth = await estado.get_state(AuthState)
         return auth._sessao_expirada()
+    if isinstance(erro, api.AcessoNegado) and erro.mensagem == MENSAGEM_TROQUE_SENHA:
+        auth = await estado.get_state(AuthState)
+        auth.senha_provisoria = True
+        return rx.redirect(ROTA_TROCAR_SENHA)
     estado.mensagem_erro = erro.mensagem
     if isinstance(erro, api.AcessoNegado):
         return rx.redirect(ROTA_INICIO)

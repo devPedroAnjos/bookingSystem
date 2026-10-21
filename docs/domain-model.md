@@ -44,7 +44,8 @@ Pessoa que acessa o sistema. Tem exatamente **um papel**.
 - papel (`ALUNO`, `PROFESSOR`, `COORDENADOR`, `ADMIN`) e situação da conta (`PENDENTE`, `ATIVA`, `RECUSADA`, `INATIVA`);
 - unidade de vínculo: para pedido `PENDENTE` ou `RECUSADA`, é a **unidade pedida**; para professor ativo, é a **unidade a que ele pertence**; para aluno e coordenador ativos, fica vazia;
 - decisão do pedido: quem decidiu, quando e o motivo da recusa;
-- pedidos de cadastro enviados, justificativa do reenvio e se a última recusa foi automática por desativação da unidade.
+- pedidos de cadastro enviados, justificativa do reenvio e se a última recusa foi automática por desativação da unidade;
+- se é o **administrador principal**, se a **senha é provisória** e a partir de quando as sessões valem (instante da última troca ou redefinição de senha).
 
 **Relacionamentos:**
 - Faz várias reservas, séries recorrentes e entradas em fila.
@@ -58,8 +59,11 @@ Pessoa que acessa o sistema. Tem exatamente **um papel**.
 - Conta de professor nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin ou de um coordenador ativo da unidade pedida.
 - Conta de coordenador nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin; ao ser aprovada, passa a coordenar a unidade pedida.
 - A recusa exige motivo. O titular pode reenviar o pedido até o limite de pedidos; a recusa automática por desativação da unidade não consome pedido. Só o admin aprova conta `RECUSADA`.
-- Só contas `ATIVA` podem autenticar.
-- O papel `ADMIN` é atribuído somente por admin; o cadastro nunca o concede.
+- Só contas `ATIVA` podem autenticar. Com senha provisória, a conta só consulta os próprios dados e troca a senha.
+- Um admin inativa uma conta `ATIVA` com motivo (registrado só na auditoria) e reativa uma conta `INATIVA`. As coordenações ficam guardadas durante a inativação; na reativação, só as de unidades ativas e com vaga continuam. Professor com unidade desativada recebe nova unidade, e admin só volta se houver vaga no limite.
+- Trocar ou redefinir a senha invalida os tokens emitidos antes. A redefinição pelo admin deixa a senha provisória.
+- O papel `ADMIN` é atribuído somente pelo **admin principal**, criando a conta (com senha provisória) ou promovendo um coordenador ativo, que perde as coordenações; o cadastro nunca o concede. Há no máximo `max_admins` admins `ATIVA`, contando o principal.
+- Existe exatamente **um admin principal**. Ele não é alvo de nenhuma operação sobre contas. Admins secundários só são inativados, reativados, rebaixados (somente a `COORDENADOR`, com de 1 a 2 unidades) ou têm a senha redefinida pelo principal.
 - Mudança de papel (só admin, conta `ATIVA`): `ALUNO` → `PROFESSOR` → `COORDENADOR`, e `COORDENADOR` → `PROFESSOR`. Ninguém volta a `ALUNO`. Virar professor exige unidade; virar coordenador exige de 1 a 2 unidades.
 - O professor pertence a uma unidade e só o admin o transfere. O aluno pertence à instituição.
 
@@ -249,7 +253,7 @@ Registro imutável de ação sensível.
 
 ### 2.18 Configuração Geral
 
-Registro único com os parâmetros globais editáveis pelo admin.
+Registro único com os parâmetros globais editáveis pelo admin principal. Reduzir um limite não remove ninguém; o novo valor vale para as ações seguintes.
 
 | Parâmetro | Padrão |
 |---|---|
@@ -267,6 +271,7 @@ Registro único com os parâmetros globais editáveis pelo admin.
 | Máximo de coordenadores por unidade | 4 |
 | Máximo de unidades por coordenador | 2 |
 | Máximo de pedidos de cadastro (cadastro + reenvios) | 3 |
+| Máximo de administradores ativos (incluindo o principal) | 3 |
 
 ---
 
@@ -438,6 +443,9 @@ erDiagram
         int pedidos_cadastro
         string justificativa_cadastro
         bool recusa_sem_custo
+        bool admin_principal
+        bool senha_provisoria
+        int sessoes_validas_desde
         timestamp criado_em
     }
     COORDENACAO_UNIDADE {
@@ -621,6 +629,7 @@ erDiagram
         int max_coordenadores_unidade
         int max_unidades_coordenador
         int max_pedidos_cadastro
+        int max_admins
     }
 ```
 
@@ -630,7 +639,7 @@ erDiagram
 
 | Tabela | Restrição |
 |---|---|
-| `usuario` | `email` único; `unidade_vinculo_id` obrigatório no cadastro de professor e de coordenador e para professor ativo; `pedidos_cadastro` até o limite de `configuracao_geral` (exceto após recusa sem custo). |
+| `usuario` | `email` único; `unidade_vinculo_id` obrigatório no cadastro de professor e de coordenador e para professor ativo; `pedidos_cadastro` até o limite de `configuracao_geral` (exceto após recusa sem custo); exatamente um `admin_principal`; até `max_admins` contas `ADMIN` `ATIVA`; `sessoes_validas_desde` em milissegundos (epoch), comparado ao instante de emissão gravado no token. |
 | `coordenacao_unidade` | Único por (`usuario_id`, `unidade_id`); de 1 a `max_unidades_coordenador` por coordenador ativo; até `max_coordenadores_unidade` coordenadores ativos por unidade. |
 | `regra_papel` | Único por (`tipo_espaco_id`, `papel`). |
 | `espaco_recurso` | Único por (`espaco_id`, `recurso_id`); `quantidade >= 1`. |
