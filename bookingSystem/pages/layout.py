@@ -19,6 +19,7 @@ def menu() -> rx.Component:
         rx.hstack(item_menu("Trocar senha", ROTA_TROCAR_SENHA), align="center"),
         rx.hstack(
             item_menu("Início", "/inicio"),
+            item_menu("Buscar espaços", "/buscar"),
             rx.cond(AuthState.e_gestor, item_menu("Aprovações", "/aprovacoes")),
             rx.cond(AuthState.e_gestor, item_menu("Espaços", "/espacos")),
             rx.cond(AuthState.e_admin, item_menu("Usuários", "/usuarios")),

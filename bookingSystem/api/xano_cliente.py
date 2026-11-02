@@ -578,3 +578,38 @@ async def mover_espaco(
     return await _requisitar(
         "POST", _url(_ESPACOS, "mover_espaco"), token, dados
     )
+
+
+# ---------- Regras do tipo e busca ----------
+
+
+async def definir_regras_tipo(
+    token: str, tipo_espaco_id: int, regras: dict[str, Any]
+) -> dict[str, Any]:
+    """Grava as regras de uso do tipo e a regra de aluno e professor.
+
+    `regras`: os oito campos de regra (minutos e dias) e
+    aluno/professor_pode_reservar e aluno/professor_exige_aprovacao.
+    """
+    dados = {"tipo_espaco_id": tipo_espaco_id, **regras}
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "definir_regras_tipo"), token, dados
+    )
+
+
+async def filtros_busca(token: str) -> dict[str, Any]:
+    """Tipos que o papel pode reservar e o catálogo de recursos."""
+    return await _requisitar("GET", _url(_ESPACOS, "filtros_busca"), token)
+
+
+async def buscar_espacos(
+    token: str, filtros: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Espaços reserváveis pelo usuário, com os filtros informados.
+
+    Com data (AAAA-MM-DD) e horas (HH:MM), cada espaço diz se o pedido
+    está dentro das regras do tipo; a ocupação não é verificada.
+    """
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "buscar_espacos"), token, filtros
+    )

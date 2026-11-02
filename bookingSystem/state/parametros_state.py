@@ -15,7 +15,11 @@ LIMITES = (
     "max_coordenadores_unidade",
     "max_unidades_coordenador",
     "max_admins",
+    "granularidade_minutos",
 )
+
+# Dias de funcionamento em ISO: 1 = segunda a 7 = domingo
+DIAS_SEMANA = ("1", "2", "3", "4", "5", "6", "7")
 
 
 class ParametrosState(rx.State):
@@ -23,6 +27,7 @@ class ParametrosState(rx.State):
 
     dominios: str = ""
     limites: dict[str, str] = {}
+    dias: dict[str, bool] = {}
     # Muda a cada carga para recriar o formulário com os valores atuais
     versao: int = 0
     mensagem_erro: str = ""
@@ -36,7 +41,11 @@ class ParametrosState(rx.State):
         except api.ErroApi as erro:
             return await tratar_erro_api(self, erro)
         self.dominios = ", ".join(parametros["dominios_email"])
-        self.limites = {campo: str(parametros[campo]) for campo in LIMITES}
+        self.limites = {
+            campo: str(parametros.get(campo) or "") for campo in LIMITES
+        }
+        marcados = {str(dia) for dia in parametros.get("dias_funcionamento") or []}
+        self.dias = {dia: dia in marcados for dia in DIAS_SEMANA}
         self.versao += 1
 
     @rx.event
@@ -57,6 +66,9 @@ class ParametrosState(rx.State):
             return
         parametros = {campo: int(valor) for campo, valor in valores.items()}
         parametros["dominios_email"] = dominios
+        parametros["dias_funcionamento"] = [
+            int(dia) for dia in DIAS_SEMANA if dados.get("dia_" + dia)
+        ]
         token = await token_da_sessao(self)
         try:
             resposta = await api.salvar_parametros(token, parametros)
