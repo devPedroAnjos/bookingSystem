@@ -31,8 +31,9 @@ context: |
       PENDENTE ou CONFIRMADA e entradas de fila NOTIFICADA, que retêm a
       vaga); checagem e gravação atômicas no backend.
     - Prioridade por papel; empate decidido pela ordem de criação no backend.
-    - Reservas só em dias úteis, início a partir de 08h00, término até 22h40,
-      múltiplos de 10 min, fuso America/Sao_Paulo.
+    - Reservas só nos dias de funcionamento, dentro do horário do tipo
+      (padrão 08h00-22h40) e em múltiplos da granularidade (padrão 10 min),
+      fuso America/Sao_Paulo.
     - Prazos, durações e limites são parâmetros (ConfiguracaoGeral e
       TipoEspaco), nunca valores fixos no código.
 
