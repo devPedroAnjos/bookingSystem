@@ -3,7 +3,7 @@
 // marca de principal no admin já existente, linha de trava e pedidos_cadastro das contas antigas.
 // Executada manualmente depois do push. As credenciais do administrador vêm de variáveis
 // de ambiente do Xano e nunca são versionadas.
-// Cria a configuração, as unidades e os tipos de espaço iniciais e o primeiro ADMIN, sem duplicar nada
+// Cria a configuração, as unidades, os tipos de espaço e as regras iniciais e o primeiro ADMIN, sem duplicar nada
 function bootstrap {
   input {
   }
@@ -44,6 +44,7 @@ function bootstrap {
         parametros_ajustados: []
         unidades_criadas    : []
         tipos_criados       : []
+        regras_carregadas   : []
         admin_criado        : false
         trava_criada        : false
         contas_com_pedido_1 : 0
@@ -58,6 +59,8 @@ function bootstrap {
         max_unidades_coordenador : 2
         max_pedidos_cadastro     : 3
         max_admins               : 3
+        granularidade_minutos    : 10
+        dias_funcionamento       : [1, 2, 3, 4, 5]
       }
     }
   
@@ -76,6 +79,8 @@ function bootstrap {
                 max_unidades_coordenador : $parametros_padrao.max_unidades_coordenador
                 max_pedidos_cadastro     : $parametros_padrao.max_pedidos_cadastro
                 max_admins               : $parametros_padrao.max_admins
+                granularidade_minutos    : $parametros_padrao.granularidade_minutos
+                dias_funcionamento       : $parametros_padrao.dias_funcionamento
               }
             } as $configuracao_criada
           
@@ -92,8 +97,13 @@ function bootstrap {
           
             foreach ($parametros_padrao|keys) {
               each as $parametro {
+                var $valor_atual {
+                  value = $configuracao|get:$parametro
+                }
+              
+                // Lista vazia conta como vazio: a coluna int[] pode voltar [] em vez de null
                 conditional {
-                  if (($configuracao|get:$parametro) == null) {
+                  if ($valor_atual == null || ($parametro == "dias_funcionamento" && ($valor_atual|count) == 0)) {
                     var.update $ajustes {
                       value = $ajustes
                         |set:$parametro:($parametros_padrao|get:$parametro)
@@ -218,6 +228,125 @@ function bootstrap {
               
                 var.update $resultado.tipos_criados {
                   value = $resultado.tipos_criados|push:$tipo.nome
+                }
+              }
+            }
+          }
+        }
+      
+        // Regras iniciais (C5, design D9): carga única, só com regra_papel vazia. O nome é usado
+        // só aqui; um tipo renomeado antes da carga fica sem regras (falha segura).
+        // Valores aprovados no explore (spec regras-tipo); 0 e false gravados explicitamente.
+        db.query regra_papel {
+          return = {type: "count"}
+        } as $total_regras_papel
+      
+        conditional {
+          if ($total_regras_papel == 0) {
+            var $regras_iniciais {
+              value = [
+                {
+                  nome: "Sala de aula",
+                  duracao_min: 50,
+                  duracao_max: 300,
+                  antecedencia_min: 0,
+                  antecedencia_max_dias: 30,
+                  max_ativas: 10,
+                  recorrencia: true,
+                  aluno_pode: false,
+                  aluno_aprovacao: false,
+                  professor_pode: true,
+                  professor_aprovacao: false
+                },
+                {
+                  nome: "Laboratório",
+                  duracao_min: 30,
+                  duracao_max: 240,
+                  antecedencia_min: 0,
+                  antecedencia_max_dias: 14,
+                  max_ativas: 3,
+                  recorrencia: false,
+                  aluno_pode: true,
+                  aluno_aprovacao: true,
+                  professor_pode: true,
+                  professor_aprovacao: false
+                },
+                {
+                  nome: "Biblioteca",
+                  duracao_min: 30,
+                  duracao_max: 180,
+                  antecedencia_min: 0,
+                  antecedencia_max_dias: 7,
+                  max_ativas: 2,
+                  recorrencia: false,
+                  aluno_pode: true,
+                  aluno_aprovacao: false,
+                  professor_pode: true,
+                  professor_aprovacao: false
+                },
+                {
+                  nome: "Auditório",
+                  duracao_min: 50,
+                  duracao_max: 480,
+                  antecedencia_min: 1440,
+                  antecedencia_max_dias: 60,
+                  max_ativas: 2,
+                  recorrencia: false,
+                  aluno_pode: false,
+                  aluno_aprovacao: false,
+                  professor_pode: true,
+                  professor_aprovacao: true
+                }
+              ]
+            }
+          
+            foreach ($regras_iniciais) {
+              each as $regra {
+                db.query tipo_espaco {
+                  where = $db.tipo_espaco.nome == $regra.nome
+                  return = {type: "single"}
+                } as $tipo_inicial
+              
+                conditional {
+                  if ($tipo_inicial != null) {
+                    // Horário 480 a 1360 minutos (08h00 a 22h40), padrão dos tipos iniciais
+                    db.edit tipo_espaco {
+                      field_name = "id"
+                      field_value = $tipo_inicial.id
+                      data = {
+                        duracao_min_minutos        : $regra.duracao_min
+                        duracao_max_minutos        : $regra.duracao_max
+                        antecedencia_min_minutos   : $regra.antecedencia_min
+                        antecedencia_max_dias      : $regra.antecedencia_max_dias
+                        max_reservas_ativas_usuario: $regra.max_ativas
+                        hora_abertura_minutos      : 480
+                        hora_fechamento_minutos    : 1360
+                        permite_recorrencia        : $regra.recorrencia
+                      }
+                    } as $tipo_regrado
+                  
+                    db.add regra_papel {
+                      data = {
+                        tipo_espaco_id : $tipo_inicial.id
+                        papel          : "ALUNO"
+                        pode_reservar  : $regra.aluno_pode
+                        exige_aprovacao: $regra.aluno_aprovacao
+                      }
+                    } as $regra_aluno
+                  
+                    db.add regra_papel {
+                      data = {
+                        tipo_espaco_id : $tipo_inicial.id
+                        papel          : "PROFESSOR"
+                        pode_reservar  : $regra.professor_pode
+                        exige_aprovacao: $regra.professor_aprovacao
+                      }
+                    } as $regra_professor
+                  
+                    var.update $resultado.regras_carregadas {
+                      value = $resultado.regras_carregadas|push:$regra.nome
+                    }
+                  }
                 }
               }
             }

@@ -24,6 +24,8 @@ query parametros verb=GET {
     max_unidades_coordenador : $configuracao.max_unidades_coordenador
     max_pedidos_cadastro     : $configuracao.max_pedidos_cadastro
     max_admins               : $configuracao.max_admins
+    granularidade_minutos    : $configuracao.granularidade_minutos
+    dias_funcionamento       : $configuracao.dias_funcionamento
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"
