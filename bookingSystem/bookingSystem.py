@@ -7,6 +7,7 @@ import reflex as rx
 
 from bookingSystem.pages.administradores import administradores
 from bookingSystem.pages.aprovacoes import aprovacoes
+from bookingSystem.pages.buscar import buscar
 from bookingSystem.pages.cadastro import cadastro
 from bookingSystem.pages.espacos import espacos
 from bookingSystem.pages.inicio import inicio
@@ -24,6 +25,7 @@ from bookingSystem.state.auth_state import (
     ROTA_TROCAR_SENHA,
     AuthState,
 )
+from bookingSystem.state.busca_state import BuscaState
 from bookingSystem.state.contas_state import ContasState
 from bookingSystem.state.espacos_state import EspacosState
 from bookingSystem.state.parametros_state import ParametrosState
@@ -50,6 +52,12 @@ app.add_page(
     route=ROTA_INICIO,
     title="Início | BookingSystem",
     on_load=AuthState.verificar_sessao,
+)
+app.add_page(
+    buscar,
+    route="/buscar",
+    title="Buscar espaços | BookingSystem",
+    on_load=[AuthState.verificar_sessao, BuscaState.abrir],
 )
 app.add_page(
     aprovacoes,

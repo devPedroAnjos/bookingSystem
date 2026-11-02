@@ -16,6 +16,12 @@ table configuracao_geral {
   
     // Máximo de administradores ativos, contando o principal
     int? max_admins?
+
+    // Horário (C5): granularidade em minutos (divisor de 60) e dias de funcionamento em ISO
+    // (1 = segunda a 7 = domingo). Preenchidos pelo bootstrap; lidos por obter_configuracao_horario.
+    int? granularidade_minutos?
+
+    int[] dias_funcionamento?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]

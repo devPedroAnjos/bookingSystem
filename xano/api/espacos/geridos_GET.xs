@@ -1,7 +1,7 @@
 // Espaços sob o escopo do usuário (spec espacos; design D8): ADMIN recebe os de todas as unidades,
 // COORDENADOR só os das unidades que coordena; ALUNO e PROFESSOR recebem 403.
 // Uma consulta por tabela e junção em memória. Cada espaço traz unidade, tipo, recursos e a
-// disponibilidade derivada. Ordem: nome da unidade e código.
+// disponibilidade derivada (inclui "tipo sem regras", C5). Ordem: nome da unidade e código.
 // Lista os espaços geridos com recursos e disponibilidade
 query geridos verb=GET {
   api_group = "espacos"
@@ -55,7 +55,11 @@ query geridos verb=GET {
     db.query recurso {
       return = {type: "list"}
     } as $recursos
-  
+
+    db.query regra_papel {
+      return = {type: "list"}
+    } as $todas_regras
+
     db.query espaco_recurso {
       return = {type: "list"}
     } as $associacoes
@@ -103,11 +107,19 @@ query geridos verb=GET {
               }
             }
           
+            function.run tipo_com_regras {
+              input = {
+                tipo          : $tipo
+                regras_do_tipo: $todas_regras|filter:$$.tipo_espaco_id == $tipo.id
+              }
+            } as $com_regras
+
             function.run disponibilidade_espaco {
               input = {
-                espaco_ativo : $espaco.ativo
-                unidade_ativa: $unidade.ativa
-                tipo_ativo   : $tipo.ativo
+                espaco_ativo   : $espaco.ativo
+                unidade_ativa  : $unidade.ativa
+                tipo_ativo     : $tipo.ativo
+                tipo_com_regras: $com_regras
               }
             } as $disponibilidade
           

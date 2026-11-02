@@ -100,14 +100,17 @@ Associa um usuário de papel `COORDENADOR` a uma unidade. Contam apenas coordena
 
 Categoria de espaço com regras de uso próprias. Tipos iniciais: **Sala de aula, Laboratório, Biblioteca, Auditório**. O admin pode criar novos tipos.
 
-**Principais informações (regras do tipo):** nome; duração mínima e máxima; antecedência mínima e máxima; máximo de reservas ativas por usuário; horário de abertura (08h00) e de fechamento (22h40); permite recorrência.
+**Principais informações (regras do tipo):** nome; duração mínima e máxima (minutos); antecedência mínima (minutos) e máxima (dias); máximo de reservas ativas por usuário; horário de abertura e de fechamento, em minutos desde a meia-noite (padrão 08h00 e 22h40); permite recorrência.
 
 **Relacionamentos:** classifica vários espaços; possui uma regra por papel (RegraPapel).
 
 **Regras estruturais:**
 - Qualquer admin cria, edita, desativa e reativa tipos. O nome é único, sem diferenciar maiúsculas e minúsculas. Tipos nunca são excluídos.
 - Desativar um tipo não altera os espaços dele, mas eles deixam de ser reserváveis. Um tipo desativado não pode ser escolhido para espaços novos nem para a troca de tipo.
-- Os tipos iniciais entram pela carga inicial. Nesta etapa (change `tipos-espacos-recursos`), o tipo tem só nome, descrição e situação; as regras de uso e a RegraPapel chegam na change de regras por tipo de espaço.
+- Um tipo só é reservável com **regras completas**: as oito regras preenchidas e uma RegraPapel para aluno e outra para professor. Sem elas, os espaços do tipo não são reserváveis (motivo `TIPO_SEM_REGRAS`) e a página de tipos o destaca como "sem regras".
+- Os quatro tipos iniciais recebem as regras numa carga única da carga inicial, feita só enquanto não há nenhuma RegraPapel (valores no `project-overview.md`, §7.2). Os demais tipos, inclusive os criados depois, nascem sem regras até o admin defini-las.
+- Abertura e fechamento ficam no mesmo dia (de 0 a 1439 minutos; o fechamento é sempre antes da meia-noite), com a abertura antes do fechamento. Durações e horários são múltiplos da granularidade (§2.18), e a duração máxima cabe no horário do tipo.
+- Qualquer admin edita as regras do tipo e a RegraPapel dele, inclusive de tipo desativado. A granularidade e os dias de funcionamento são do admin principal.
 
 ### 2.5 Regra por Papel (RegraPapel)
 
@@ -120,7 +123,10 @@ Define, para um tipo de espaço e um papel, **se o papel pode reservar** e **se 
 | Sala de aula | — | reserva | reserva |
 | Auditório | — | reserva **com aprovação** | reserva |
 
-**Regra estrutural:** única por (tipo de espaço, papel).
+**Regras estruturais:**
+- Única por (tipo de espaço, papel).
+- Guarda só aluno e professor. Coordenador e admin têm regra fixa, sem registro: reservam todos os tipos, sem aprovação.
+- Só exige aprovação quem pode reservar.
 
 ### 2.6 Espaço
 
@@ -285,6 +291,10 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 | Máximo de unidades por coordenador | 2 |
 | Máximo de pedidos de cadastro (cadastro + reenvios) | 3 |
 | Máximo de administradores ativos (incluindo o principal) | 3 |
+
+- A granularidade é um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60), e a mudança é recusada se deixar algum tipo com regras fora dela.
+- Os dias de funcionamento são uma lista de dias ISO (1 = segunda a 7 = domingo), com pelo menos um dia.
+- O horário 08h00–22h40 não é parâmetro global: é o padrão de abertura e fechamento de cada tipo (§2.4).
 
 ---
 
@@ -476,8 +486,8 @@ erDiagram
         int antecedencia_min_minutos
         int antecedencia_max_dias
         int max_reservas_ativas_usuario
-        time hora_abertura
-        time hora_fechamento
+        int hora_abertura_minutos
+        int hora_fechamento_minutos
         bool permite_recorrencia
         bool ativo
     }
@@ -628,7 +638,7 @@ erDiagram
         int id PK
         string dominios_email
         int granularidade_minutos
-        string dias_funcionamento
+        int[] dias_funcionamento
         int prazo_cancelamento_minutos
         int checkin_antes_minutos
         int checkin_depois_minutos
@@ -654,8 +664,8 @@ erDiagram
 |---|---|
 | `usuario` | `email` único; `unidade_vinculo_id` obrigatório no cadastro de professor e de coordenador e para professor ativo; `pedidos_cadastro` até o limite de `configuracao_geral` (exceto após recusa sem custo); exatamente um `admin_principal`; até `max_admins` contas `ADMIN` `ATIVA`; `sessoes_validas_desde` em milissegundos (epoch), comparado ao instante de emissão gravado no token. |
 | `coordenacao_unidade` | Único por (`usuario_id`, `unidade_id`); de 1 a `max_unidades_coordenador` por coordenador ativo; até `max_coordenadores_unidade` coordenadores ativos por unidade. |
-| `tipo_espaco` | `nome` único, sem diferenciar maiúsculas e minúsculas. Nunca excluído. |
-| `regra_papel` | Único por (`tipo_espaco_id`, `papel`). |
+| `tipo_espaco` | `nome` único, sem diferenciar maiúsculas e minúsculas. Nunca excluído. Regras opcionais na tabela; quando definidas: `1 <= duracao_min_minutos <= duracao_max_minutos`; `0 <= hora_abertura_minutos < hora_fechamento_minutos <= 1439`; durações e horários múltiplos de `granularidade_minutos`; `duracao_max_minutos` cabe entre abertura e fechamento; `antecedencia_min_minutos >= 0`; `antecedencia_max_dias >= 1` e maior que a mínima; `max_reservas_ativas_usuario >= 1`. |
+| `regra_papel` | Único por (`tipo_espaco_id`, `papel`); `papel` só `ALUNO` ou `PROFESSOR`; `exige_aprovacao` só com `pode_reservar`. |
 | `espaco` | `codigo` único por (`unidade_id`, `codigo`), sem diferenciar maiúsculas e minúsculas; `capacidade >= 1`. Nunca excluído. |
 | `recurso` | `nome` único, sem diferenciar maiúsculas e minúsculas. Excluído só quando nenhum `espaco_recurso` o referencia. |
 | `espaco_recurso` | Único por (`espaco_id`, `recurso_id`); `quantidade >= 1`. |
@@ -666,7 +676,7 @@ erDiagram
 | `contestacao` | `penalidade_id` único. |
 | `avaliacao` | `reserva_id` único; `nota` entre 1 e 5. |
 | `log_auditoria` | Somente inserção. |
-| `configuracao_geral` | Registro único. |
+| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um. |
 
 ### A.2 Índices recomendados
 

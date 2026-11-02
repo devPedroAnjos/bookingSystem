@@ -101,23 +101,23 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 
 ### 7.1 Horário de funcionamento
 
-- Reservas apenas de **segunda a sexta-feira**.
-- Uma reserva pode **começar a partir de 08h00** e deve **terminar no máximo às 22h40**.
-- 22h40 é apenas horário de término: nenhuma reserva pode começar às 22h40 ou depois.
-- Os horários de início e fim são múltiplos de **10 minutos** (permite 22h40 e blocos de 50 min).
+- Reservas apenas nos **dias de funcionamento**: por padrão, **segunda a sexta-feira** (parâmetro do admin principal).
+- Cada tipo de espaço tem horário de abertura e de fechamento. O padrão é **abertura às 08h00** e **fechamento às 22h40**: a reserva começa a partir da abertura e termina no máximo no fechamento, no mesmo dia.
+- O fechamento é apenas horário de término: com o padrão, nenhuma reserva pode começar às 22h40 ou depois.
+- Os horários de início e fim são múltiplos da **granularidade**: por padrão, **10 minutos** (permite 22h40 e blocos de 50 min). A granularidade é parâmetro do admin principal.
 - Todas as regras de horário são avaliadas no fuso **America/Sao_Paulo**.
 - Feriados e recessos são tratados como **bloqueios** cadastrados pela coordenação ou administração.
 
 ### 7.2 Regras por tipo de espaço e papel
 
-| Tipo de espaço | Duração mínima | Quem pode reservar | Exige aprovação para | Recorrência |
-|---|---|---|---|---|
-| Biblioteca | 30 min | Aluno, Professor, Coordenador, Admin | — | Não |
-| Laboratório | 30 min | Aluno, Professor, Coordenador, Admin | **Aluno** | Não |
-| Sala de aula | 50 min | Professor, Coordenador, Admin | — | **Sim** |
-| Auditório | 50 min | Professor, Coordenador, Admin | **Professor** | Não |
+| Tipo de espaço | Duração | Antecedência mínima | Antecedência máxima | Reservas ativas por usuário | Quem pode reservar | Exige aprovação para | Recorrência |
+|---|---|---|---|---|---|---|---|
+| Biblioteca | 30 a 180 min | 0 min | 7 dias | 2 | Aluno, Professor, Coordenador, Admin | — | Não |
+| Laboratório | 30 a 240 min | 0 min | 14 dias | 3 | Aluno, Professor, Coordenador, Admin | **Aluno** | Não |
+| Sala de aula | 50 a 300 min | 0 min | 30 dias | 10 | Professor, Coordenador, Admin | — | **Sim** |
+| Auditório | 50 a 480 min | 1440 min (1 dia) | 60 dias | 2 | Professor, Coordenador, Admin | **Professor** | Não |
 
-O administrador também configura, por tipo: duração máxima, antecedência mínima e máxima, limite de reservas ativas por usuário, horário de funcionamento e quem pode reservar ou precisa de aprovação. Ele pode criar novos tipos de espaço. Coordenadores e administradores não precisam de aprovação.
+Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga inicial. O administrador altera, por tipo, todas essas regras, o horário de funcionamento e quem pode reservar ou precisa de aprovação (aluno e professor). Ele pode criar novos tipos de espaço, que só ficam reserváveis depois de receber as regras. Coordenadores e administradores reservam todos os tipos, sem aprovação.
 
 ### 7.3 Concorrência e prioridade
 
@@ -262,8 +262,8 @@ Ordem das changes (ajustada durante os Explores):
 2. Coordenação e unidades: aprovação de professor e coordenador, reenvio de pedido, papéis, coordenação, gestão de unidades e autorização por unidade (C2, `coordenacao-unidades`).
 3. Contas, administradores e senha: administradores secundários, senha provisória, troca de senha, inativação de contas e tela de parâmetros (C3, `contas-admins-senha`).
 4. Tipos de espaço, espaços e recursos: cadastro de tipos (só nome, descrição e situação), catálogo de recursos, espaços com código único por unidade, disponibilidade derivada e mudança de unidade pelo admin (C4, `tipos-espacos-recursos`).
-5. Regras por tipo de espaço e busca de disponibilidade. Pendências da C4: criar os campos de regra e a RegraPapel e definir como os tipos existentes recebem regras, sem depender do nome do tipo (o admin renomeia e cria tipos); tipo sem regras completas não é reservável; abrir a leitura de tipos ativos e recursos a alunos e professores; a busca mostra espaços de todas as unidades a todos os papéis e exibe o código junto com o nome da unidade; usar a disponibilidade derivada.
-6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2). Pendências da C4: decidir o efeito, sobre reservas e filas, de desativar um espaço, um tipo ou uma unidade e de mover um espaço de unidade; reler espaço, unidade e tipo dentro da trava antes de aplicar a disponibilidade.
+5. Regras por tipo de espaço e busca de espaços: regras de uso e RegraPapel por tipo, editadas pelo admin; carga única das regras dos quatro tipos iniciais; tipo sem regras completas não é reservável; granularidade e dias de funcionamento como parâmetros; busca para todos os papéis, com espaços de todas as unidades, que diz se um horário está dentro das regras do tipo, sem verificar ocupação (C5, `regras-tipo-busca`).
+6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2). Pendências da C5: validar o horário com `validar_horario_reserva`, relendo tipo, regras e configuração dentro da trava antes de checar conflito; aplicar o máximo de reservas ativas por usuário no tipo; usar a regra do papel na criação (sem permissão, recusa; com aprovação, a reserva nasce pendente); a busca passa a poder indicar ocupação. Pendências da C4: decidir o efeito, sobre reservas e filas, de desativar um espaço, um tipo ou uma unidade e de mover um espaço de unidade; reler espaço, unidade e tipo dentro da trava antes de aplicar a disponibilidade.
 7. Aprovação de reservas pendentes e expiração. Pendência da C4: mover um espaço de unidade muda quem aprova as reservas pendentes dele.
 8. Prioridade, deslocamento e fila de espera.
 9. Cancelamento, check-in, faltas e penalidades (inclui contestação).

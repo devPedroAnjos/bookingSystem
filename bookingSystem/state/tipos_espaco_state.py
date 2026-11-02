@@ -1,12 +1,32 @@
 """Estado da página de tipos de espaço (só administrador).
 
-Só usabilidade: nome único e situação são validados no Xano.
+Só usabilidade: nome único, situação e a consistência das regras são
+validados no Xano.
 """
 
 import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
+from bookingSystem.state.horarios import hhmm_para_minutos, minutos_para_hhmm
+
+# Regras em número inteiro (minutos, dias ou quantidade), como no Xano
+REGRAS_NUMERICAS = (
+    "duracao_min_minutos",
+    "duracao_max_minutos",
+    "antecedencia_min_minutos",
+    "antecedencia_max_dias",
+    "max_reservas_ativas_usuario",
+)
+# Horários: HH:MM na tela, minutos desde a meia-noite no Xano
+REGRAS_HORARIO = ("hora_abertura_minutos", "hora_fechamento_minutos")
+REGRAS_SIM_NAO = (
+    "permite_recorrencia",
+    "aluno_pode_reservar",
+    "aluno_exige_aprovacao",
+    "professor_pode_reservar",
+    "professor_exige_aprovacao",
+)
 
 
 def _tipo_para_tela(tipo: dict) -> dict[str, str]:
@@ -15,9 +35,39 @@ def _tipo_para_tela(tipo: dict) -> dict[str, str]:
         "nome": tipo["nome"],
         "descricao": tipo.get("descricao") or "",
         "ativo": "sim" if tipo["ativo"] else "nao",
+        "com_regras": "sim" if tipo.get("com_regras") else "nao",
         "espacos_ativos": str(tipo.get("espacos_ativos") or 0),
         "unidades": str(tipo.get("unidades") or 0),
     }
+
+
+def _regras_para_tela(regras: dict) -> dict[str, str]:
+    """Valores atuais do diálogo; regra ainda não definida fica vazia."""
+    tela = {
+        campo: "" if regras.get(campo) is None else str(regras[campo])
+        for campo in REGRAS_NUMERICAS
+    }
+    for campo in REGRAS_HORARIO:
+        tela[campo] = minutos_para_hhmm(regras.get(campo))
+    return tela
+
+
+def _regras_do_formulario(dados: dict) -> dict | None:
+    """Regras prontas para o Xano, ou None se faltar algo ou o formato for inválido."""
+    regras = {}
+    for campo in REGRAS_NUMERICAS:
+        valor = str(dados.get(campo, "") or "").strip()
+        if not valor.isdigit():
+            return None
+        regras[campo] = int(valor)
+    for campo in REGRAS_HORARIO:
+        minutos = hhmm_para_minutos(str(dados.get(campo, "") or ""))
+        if minutos is None:
+            return None
+        regras[campo] = minutos
+    for campo in REGRAS_SIM_NAO:
+        regras[campo] = bool(dados.get(campo))
+    return regras
 
 
 class TiposEspacoState(rx.State):
@@ -42,6 +92,14 @@ class TiposEspacoState(rx.State):
     desativar_espacos: str = "0"
     desativar_unidades: str = "0"
 
+    regras_aberta: bool = False
+    regras_id: str = ""
+    regras_nome: str = ""
+    regras_valores: dict[str, str] = {}
+    regras_marcadas: dict[str, bool] = {}
+
+    _regras_por_id: dict[str, dict] = {}
+
     def _limpar_mensagens(self):
         self.mensagem_erro = ""
         self.mensagem_sucesso = ""
@@ -55,6 +113,7 @@ class TiposEspacoState(rx.State):
         except api.ErroApi as erro:
             return await tratar_erro_api(self, erro)
         self.tipos = [_tipo_para_tela(t) for t in tipos]
+        self._regras_por_id = {str(t["id"]): t.get("regras") or {} for t in tipos}
 
     @rx.event
     def abrir(self):
@@ -143,3 +202,45 @@ class TiposEspacoState(rx.State):
         self._limpar_mensagens()
         token = await token_da_sessao(self)
         return await self._executar(api.reativar_tipo_espaco(token, int(tipo_id)))
+
+    # ---------- regras do tipo ----------
+
+    @rx.event
+    def abrir_regras(self, tipo: dict):
+        self._limpar_mensagens()
+        regras = self._regras_por_id.get(tipo["id"], {})
+        self.regras_id = tipo["id"]
+        self.regras_nome = tipo["nome"]
+        self.regras_valores = _regras_para_tela(regras)
+        self.regras_marcadas = {
+            campo: bool(regras.get(campo)) for campo in REGRAS_SIM_NAO
+        }
+        self.regras_aberta = True
+
+    @rx.event
+    def mudar_regras(self, aberta: bool):
+        self.regras_aberta = aberta
+
+    @rx.event
+    async def confirmar_regras(self, dados: dict):
+        """Mantém o diálogo aberto com o erro do Xano, sem perder o que foi digitado."""
+        self._limpar_mensagens()
+        regras = _regras_do_formulario(dados)
+        if regras is None:
+            self.erro_dialogo = (
+                "Preencha todas as regras: números inteiros e horários no "
+                "formato HH:MM."
+            )
+            return
+        token = await token_da_sessao(self)
+        try:
+            resposta = await api.definir_regras_tipo(
+                token, int(self.regras_id), regras
+            )
+        except api.ErroApi as erro:
+            redirecionamento = await tratar_erro_api(self, erro)
+            self.erro_dialogo, self.mensagem_erro = self.mensagem_erro, ""
+            return redirecionamento
+        self.regras_aberta = False
+        self.mensagem_sucesso = resposta["mensagem"]
+        return TiposEspacoState.carregar

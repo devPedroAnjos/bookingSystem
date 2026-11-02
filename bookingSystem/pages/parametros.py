@@ -12,7 +12,38 @@ ROTULOS_LIMITES = {
     "max_coordenadores_unidade": "Máximo de coordenadores por unidade",
     "max_unidades_coordenador": "Máximo de unidades por coordenador",
     "max_admins": "Máximo de administradores ativos",
+    "granularidade_minutos": (
+        "Granularidade de horário, em minutos (divisor de 60: 5, 10, 15, 30...)"
+    ),
 }
+
+NOMES_DIAS = {
+    "1": "Segunda",
+    "2": "Terça",
+    "3": "Quarta",
+    "4": "Quinta",
+    "5": "Sexta",
+    "6": "Sábado",
+    "7": "Domingo",
+}
+
+
+def campo_dias() -> rx.Component:
+    return campo(
+        "Dias de funcionamento",
+        rx.hstack(
+            *[
+                rx.checkbox(
+                    nome,
+                    name="dia_" + dia,
+                    default_checked=ParametrosState.dias[dia],
+                )
+                for dia, nome in NOMES_DIAS.items()
+            ],
+            spacing="4",
+            wrap="wrap",
+        ),
+    )
 
 
 def campo(rotulo: str, controle: rx.Component) -> rx.Component:
@@ -46,6 +77,7 @@ def formulario() -> rx.Component:
                 ),
             ),
             *[campo_limite(nome) for nome in ROTULOS_LIMITES],
+            campo_dias(),
             rx.button("Salvar", type="submit"),
             spacing="4",
             width="100%",

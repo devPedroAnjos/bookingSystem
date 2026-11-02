@@ -18,10 +18,18 @@ def linha_tipo(tipo: rx.Var[dict[str, str]]) -> rx.Component:
         rx.table.cell(tipo["nome"]),
         rx.table.cell(tipo["descricao"]),
         rx.table.cell(
-            rx.cond(
-                ativo,
-                rx.badge("Ativo", color_scheme="green"),
-                rx.badge("Desativado", color_scheme="orange"),
+            rx.hstack(
+                rx.cond(
+                    ativo,
+                    rx.badge("Ativo", color_scheme="green"),
+                    rx.badge("Desativado", color_scheme="orange"),
+                ),
+                rx.cond(
+                    tipo["com_regras"] == "nao",
+                    rx.badge("Sem regras", color_scheme="red"),
+                ),
+                spacing="2",
+                wrap="wrap",
             )
         ),
         rx.table.cell(
@@ -34,6 +42,12 @@ def linha_tipo(tipo: rx.Var[dict[str, str]]) -> rx.Component:
                     size="1",
                     variant="soft",
                     on_click=TiposEspacoState.abrir_editar(tipo),
+                ),
+                rx.button(
+                    "Regras",
+                    size="1",
+                    variant="soft",
+                    on_click=TiposEspacoState.abrir_regras(tipo),
                 ),
                 rx.cond(
                     ativo,
@@ -101,8 +115,8 @@ def dialogo_criar() -> rx.Component:
         mensagem(TiposEspacoState.erro_dialogo, "red"),
         *campos_tipo(),
         rx.text(
-            "As regras de uso do tipo (duração, antecedência, quem reserva) "
-            "chegam numa próxima versão.",
+            "O tipo nasce sem regras e não é reservável até você definir as "
+            "regras dele (botão Regras).",
             size="1",
         ),
         botao="Criar",
@@ -144,6 +158,93 @@ def dialogo_desativar() -> rx.Component:
     )
 
 
+ROTULOS_REGRAS_NUMERICAS = {
+    "duracao_min_minutos": "Duração mínima (minutos)",
+    "duracao_max_minutos": "Duração máxima (minutos)",
+    "antecedencia_min_minutos": "Antecedência mínima (minutos)",
+    "antecedencia_max_dias": "Antecedência máxima (dias)",
+    "max_reservas_ativas_usuario": "Reservas ativas por usuário",
+}
+ROTULOS_REGRAS_HORARIO = {
+    "hora_abertura_minutos": "Abertura (HH:MM)",
+    "hora_fechamento_minutos": "Fechamento (HH:MM)",
+}
+
+
+def campo_regra(rotulo: str, controle: rx.Component) -> rx.Component:
+    return rx.hstack(
+        rx.text(rotulo, size="2", min_width="220px"),
+        controle,
+        align="center",
+        width="100%",
+    )
+
+
+def caixa_regra(campo: str, rotulo: str) -> rx.Component:
+    return rx.checkbox(
+        rotulo,
+        name=campo,
+        default_checked=TiposEspacoState.regras_marcadas[campo],
+    )
+
+
+def regra_do_papel(papel: str, nome: str) -> rx.Component:
+    return rx.hstack(
+        rx.text(nome, size="2", weight="medium", min_width="90px"),
+        caixa_regra(papel + "_pode_reservar", "Pode reservar"),
+        caixa_regra(papel + "_exige_aprovacao", "Exige aprovação"),
+        spacing="4",
+        align="center",
+    )
+
+
+def dialogo_regras() -> rx.Component:
+    return dialogo(
+        TiposEspacoState.regras_aberta,
+        TiposEspacoState.mudar_regras,
+        "Regras de " + TiposEspacoState.regras_nome,
+        TiposEspacoState.confirmar_regras,
+        mensagem(TiposEspacoState.erro_dialogo, "red"),
+        *[
+            campo_regra(
+                rotulo,
+                rx.input(
+                    name=nome,
+                    type="number",
+                    min=0,
+                    default_value=TiposEspacoState.regras_valores[nome],
+                    width="110px",
+                ),
+            )
+            for nome, rotulo in ROTULOS_REGRAS_NUMERICAS.items()
+        ],
+        *[
+            campo_regra(
+                rotulo,
+                rx.input(
+                    name=nome,
+                    placeholder="HH:MM",
+                    max_length=5,
+                    default_value=TiposEspacoState.regras_valores[nome],
+                    width="110px",
+                ),
+            )
+            for nome, rotulo in ROTULOS_REGRAS_HORARIO.items()
+        ],
+        caixa_regra("permite_recorrencia", "Permite reserva recorrente"),
+        rx.divider(),
+        rx.text(
+            "Coordenadores e administradores reservam todos os tipos, sem "
+            "aprovação.",
+            size="1",
+        ),
+        regra_do_papel("aluno", "Aluno"),
+        regra_do_papel("professor", "Professor"),
+        botao="Salvar",
+        limpar_ao_enviar=False,
+    )
+
+
 def tipos_espaco() -> rx.Component:
     return layout_autenticado(
         rx.heading("Tipos de espaço", size="5"),
@@ -154,5 +255,6 @@ def tipos_espaco() -> rx.Component:
         dialogo_criar(),
         dialogo_editar(),
         dialogo_desativar(),
+        dialogo_regras(),
         permitido=AuthState.e_admin,
     )

@@ -1,5 +1,7 @@
-// Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9).
-// Limites inteiros >= 1; ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas.
+// Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9 e da C5, D8).
+// Limites inteiros >= 1; ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
+// granularidade divisora de 60 e compatível com as regras dos tipos (conferido na trava);
+// dias de funcionamento de 1 a 7, sem repetição, ao menos um.
 // Reduzir um limite não remove ninguém. Se algo for inválido, nada é gravado.
 // Grava os parâmetros, dentro da trava de governança
 query parametros verb=POST {
@@ -12,6 +14,8 @@ query parametros verb=POST {
     int? max_unidades_coordenador?
     int? max_pedidos_cadastro?
     int? max_admins?
+    int? granularidade_minutos?
+    json? dias_funcionamento?
   }
 
   stack {
@@ -52,6 +56,25 @@ query parametros verb=POST {
       }
     }
   
+    precondition ([1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]|in:($input.granularidade_minutos|first_notnull:0)) {
+      error_type = "inputerror"
+      error = "A granularidade deve ser um divisor de 60: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60 minutos."
+    }
+  
+    var $dias {
+      value = ($input.dias_funcionamento|first_notnull:[])|map:($$|to_int)
+    }
+  
+    precondition (($dias|count) > 0) {
+      error_type = "inputerror"
+      error = "Informe ao menos um dia de funcionamento."
+    }
+  
+    precondition ($dias|every:($$ >= 1 && $$ <= 7) && ($dias|unique|count) == ($dias|count)) {
+      error_type = "inputerror"
+      error = "Os dias de funcionamento vão de 1 (segunda) a 7 (domingo), sem repetição."
+    }
+  
     db.transaction {
       stack {
         function.run travar_governanca as $trava
@@ -63,10 +86,37 @@ query parametros verb=POST {
         } as $ator
       
         function.run obter_configuracao as $antes
+      
+        // Nova granularidade não pode deixar tipo com regras fora dela (spec parametros)
+        conditional {
+          if ($antes.granularidade_minutos != $input.granularidade_minutos) {
+            var $granularidade {
+              value = $input.granularidade_minutos
+            }
+          
+            db.query tipo_espaco {
+              where = $db.tipo_espaco.duracao_min_minutos != null
+              return = {type: "list"}
+            } as $tipos_com_regras
+          
+            var $incompativeis {
+              value = $tipos_com_regras|filter:($$.duracao_min_minutos % $granularidade != 0 || $$.duracao_max_minutos % $granularidade != 0 || $$.hora_abertura_minutos % $granularidade != 0 || $$.hora_fechamento_minutos % $granularidade != 0 || $$.duracao_min_minutos < $granularidade)
+            }
+          
+            precondition (($incompativeis|count) == 0) {
+              error_type = "inputerror"
+              error = "A granularidade de " ~ $granularidade ~ " minutos é incompatível com as regras destes tipos: " ~ ($incompativeis|map:$$.nome|join:", ") ~ "."
+            }
+          }
+        }
+      
         db.patch configuracao_geral {
           field_name = "id"
           field_value = $antes.id
-          data = $limites|set:"dominios_email":$dominios
+          data = $limites
+            |set:"dominios_email":$dominios
+            |set:"granularidade_minutos":$input.granularidade_minutos
+            |set:"dias_funcionamento":$dias
         } as $depois
       
         function.run registrar_auditoria {
@@ -81,6 +131,8 @@ query parametros verb=POST {
             max_unidades_coordenador : $antes.max_unidades_coordenador
             max_pedidos_cadastro     : $antes.max_pedidos_cadastro
             max_admins               : $antes.max_admins
+            granularidade_minutos    : $antes.granularidade_minutos
+            dias_funcionamento       : $antes.dias_funcionamento
           }
             dados_depois: {
             dominios_email           : $depois.dominios_email
@@ -88,6 +140,8 @@ query parametros verb=POST {
             max_unidades_coordenador : $depois.max_unidades_coordenador
             max_pedidos_cadastro     : $depois.max_pedidos_cadastro
             max_admins               : $depois.max_admins
+            granularidade_minutos    : $depois.granularidade_minutos
+            dias_funcionamento       : $depois.dias_funcionamento
           }
           }
         } as $registro_auditoria
