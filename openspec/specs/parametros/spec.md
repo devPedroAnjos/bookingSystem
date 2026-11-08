@@ -13,9 +13,10 @@ Somente o admin principal DEVE (MUST) poder consultar e editar estes parâmetros
 - máximo de pedidos de cadastro;
 - máximo de admins ativos;
 - granularidade de horário, em minutos (padrão: 10);
-- dias de funcionamento (padrão: segunda a sexta).
+- dias de funcionamento (padrão: segunda a sexta);
+- prazo de cancelamento sem penalidade, em minutos antes do início da reserva (padrão: 120).
 
-Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar essa área. Os valores padrão da granularidade e dos dias de funcionamento são gravados pela carga inicial quando ainda não existem.
+Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar essa área. Os valores padrão da granularidade, dos dias de funcionamento e do prazo de cancelamento são gravados pela carga inicial quando ainda não existem.
 
 #### Scenario: Principal altera um limite
 - **WHEN** o principal altera o máximo de coordenadores por unidade de 4 para 5
@@ -25,15 +26,23 @@ Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar 
 - **WHEN** o principal inclui o sábado nos dias de funcionamento
 - **THEN** pedidos de horário em sábados passam a poder estar dentro das regras dos tipos (capability `regras-tipo`)
 
+#### Scenario: Principal altera o prazo de cancelamento
+- **WHEN** o principal altera o prazo de cancelamento de 120 para 60 minutos
+- **THEN** os usuários passam a poder cancelar as próprias reservas até 60 minutos antes do início (capability `reservas`)
+
 #### Scenario: Secundário tenta editar
 - **WHEN** um admin secundário tenta editar os parâmetros
 - **THEN** o sistema responde com acesso negado e nada muda
 
 ### Requirement: Validação dos parâmetros
-Cada limite DEVE (MUST) ser um número inteiro maior ou igual a 1. A lista de domínios DEVE ter ao menos um domínio, sem `@`, sem espaços e sem repetição, gravado em minúsculas. A granularidade DEVE ser um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60) e NÃO DEVE (MUST NOT) ser alterada para um valor do qual algum tipo com regras tenha duração, abertura ou fechamento que não seja múltiplo. Os dias de funcionamento DEVEM ter ao menos um dia, de segunda (1) a domingo (7), sem repetição. Reduzir um limite abaixo da quantidade atual NÃO DEVE remover ninguém: só impede novas entradas. Se qualquer valor for inválido, nada é gravado.
+Cada limite, inclusive o prazo de cancelamento, DEVE (MUST) ser um número inteiro maior ou igual a 1. A lista de domínios DEVE ter ao menos um domínio, sem `@`, sem espaços e sem repetição, gravado em minúsculas. A granularidade DEVE ser um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60) e NÃO DEVE (MUST NOT) ser alterada para um valor do qual algum tipo com regras tenha duração, abertura ou fechamento que não seja múltiplo. Os dias de funcionamento DEVEM ter ao menos um dia, de segunda (1) a domingo (7), sem repetição. Reduzir um limite abaixo da quantidade atual NÃO DEVE remover ninguém: só impede novas entradas. Se qualquer valor for inválido, nada é gravado.
 
 #### Scenario: Limite zero
 - **WHEN** o principal tenta gravar o máximo de admins igual a 0
+- **THEN** o sistema recusa indicando o campo inválido e nenhum parâmetro muda
+
+#### Scenario: Prazo de cancelamento inválido
+- **WHEN** o principal tenta gravar o prazo de cancelamento igual a 0
 - **THEN** o sistema recusa indicando o campo inválido e nenhum parâmetro muda
 
 #### Scenario: Lista de domínios vazia
@@ -60,7 +69,7 @@ Cada limite DEVE (MUST) ser um número inteiro maior ou igual a 1. A lista de do
 - **THEN** o sistema recusa informando que é preciso ao menos um dia
 
 ### Requirement: Tela de parâmetros
-O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", com os valores atuais preenchidos, incluindo a granularidade de horário e os dias de funcionamento (um campo por dia da semana), e mostrar a mensagem da API depois de salvar.
+O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", com os valores atuais preenchidos, incluindo a granularidade de horário, os dias de funcionamento (um campo por dia da semana) e o prazo de cancelamento, e mostrar a mensagem da API depois de salvar.
 
 #### Scenario: Salvar pela página
 - **WHEN** o principal altera o máximo de pedidos de cadastro para 4 e salva
@@ -70,3 +79,7 @@ O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", co
 - **WHEN** o principal abre a página "Parâmetros"
 - **THEN** vê a granularidade atual e os dias de funcionamento marcados, de segunda a domingo
 - **AND** ao marcar o sábado e salvar, a página mostra a confirmação e o sábado marcado
+
+#### Scenario: Prazo de cancelamento pela página
+- **WHEN** o principal abre a página "Parâmetros"
+- **THEN** vê o prazo de cancelamento atual, em minutos, e pode alterá-lo
