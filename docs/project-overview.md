@@ -171,8 +171,9 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 
 ### 7.8 Cancelamento, comparecimento e penalidade
 
-- O usuário pode cancelar **sem penalidade até 2 horas antes** do início.
-- Cancelamento com **menos de 2 horas** de antecedência **conta como falta**.
+- O usuário pode cancelar **sem penalidade até 2 horas antes** do início, inclusive exatamente no limite. O prazo é um parâmetro (`prazo_cancelamento_minutos`, padrão 120 minutos).
+- Cancelamento com **menos** que esse prazo de antecedência **conta como falta**.
+- Cancelamentos feitos pelo sistema não geram falta: inativar a conta cancela as reservas dela que ainda não começaram; desativar um espaço, um tipo ou uma unidade, trocar o tipo de um espaço ou movê-lo de unidade cancela as reservas afetadas que ainda não terminaram. Essas ações de gestão são recusadas enquanto houver reserva confirmada em andamento num espaço afetado, para admin e coordenador.
 - **Check-in** pelo próprio usuário entre **15 minutos antes e 15 minutos depois** do início. Sem check-in, a reserva é marcada como **não compareceu** e gera falta.
 - **2 faltas em 30 dias** geram **penalidade de 7 dias**. Faltas que já geraram uma penalidade não são contadas novamente.
 - Faltas cometidas durante uma penalidade ativa (por exemplo, em reservas confirmadas antes dela) contam normalmente. Se gerarem nova penalidade, ela **começa quando a atual termina**: as penalidades de um usuário se encadeiam e nunca se sobrepõem. Se uma penalidade for anulada, as encadeadas depois dela são **antecipadas**: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou).
@@ -196,7 +197,7 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 - A **recusa exige motivo**, que a pessoa vê ao tentar entrar com a senha correta. Ela pode **pedir nova análise**, trocando a unidade e o papel pedido (professor ou coordenador), até o limite de **3 pedidos** (parâmetro). Esgotados os pedidos, só o administrador pode aprovar a conta.
 - Ao **desativar uma unidade**, os pedidos pendentes dela são recusados automaticamente e essa recusa **não consome pedido**.
 - O papel de administrador é atribuído apenas pelo administrador principal. O cadastro público nunca concede o papel de administrador.
-- **Inativação:** um administrador inativa uma conta ativa informando um motivo, que fica só no log de auditoria. A pessoa perde o acesso na hora, e as coordenações dela ficam guardadas. Na **reativação**, o sistema mantém só as coordenações em unidades ativas e com vaga, pede nova unidade ao professor cuja unidade foi desativada e respeita o limite de administradores.
+- **Inativação:** um administrador inativa uma conta ativa escolhendo um motivo numa lista (com "Outro" e descrição), que fica só no log de auditoria. A pessoa perde o acesso na hora, as reservas dela que ainda não começaram são canceladas e as coordenações dela ficam guardadas. Na **reativação**, o sistema mantém só as coordenações em unidades ativas e com vaga, pede nova unidade ao professor cuja unidade foi desativada e respeita o limite de administradores.
 - **Senha:** todo usuário pode **trocar a própria senha**. O administrador pode **redefinir** a senha de uma conta (os secundários, só de contas que não são de administrador). A senha redefinida é **provisória**: no acesso seguinte, a pessoa só consegue trocá-la antes de usar o sistema. Administradores criados pelo principal também começam com senha provisória.
 
 ### 7.11 Notificações
@@ -263,14 +264,14 @@ Ordem das changes (ajustada durante os Explores):
 3. Contas, administradores e senha: administradores secundários, senha provisória, troca de senha, inativação de contas e tela de parâmetros (C3, `contas-admins-senha`).
 4. Tipos de espaço, espaços e recursos: cadastro de tipos (só nome, descrição e situação), catálogo de recursos, espaços com código único por unidade, disponibilidade derivada e mudança de unidade pelo admin (C4, `tipos-espacos-recursos`).
 5. Regras por tipo de espaço e busca de espaços: regras de uso e RegraPapel por tipo, editadas pelo admin; carga única das regras dos quatro tipos iniciais; tipo sem regras completas não é reservável; granularidade e dias de funcionamento como parâmetros; busca para todos os papéis, com espaços de todas as unidades, que diz se um horário está dentro das regras do tipo, sem verificar ocupação (C5, `regras-tipo-busca`).
-6. Reserva avulsa com verificação de conflito e regras. Inativar uma conta cancela as reservas futuras dela (regra decidida na C2). Pendências da C5: validar o horário com `validar_horario_reserva`, relendo tipo, regras e configuração dentro da trava antes de checar conflito; aplicar o máximo de reservas ativas por usuário no tipo; usar a regra do papel na criação (sem permissão, recusa; com aprovação, a reserva nasce pendente); a busca passa a poder indicar ocupação. Pendências da C4: decidir o efeito, sobre reservas e filas, de desativar um espaço, um tipo ou uma unidade e de mover um espaço de unidade; reler espaço, unidade e tipo dentro da trava antes de aplicar a disponibilidade.
-7. Aprovação de reservas pendentes e expiração. Pendência da C4: mover um espaço de unidade muda quem aprova as reservas pendentes dele.
-8. Prioridade, deslocamento e fila de espera.
-9. Cancelamento, check-in, faltas e penalidades (inclui contestação).
-10. Bloqueios.
+6. Reserva avulsa com verificação de conflito e regras: criação atômica com regras do tipo, regra do papel, limite de reservas ativas e conflito; cancelamento pelo usuário no prazo (parâmetro); "Minhas reservas"; busca com livre ou ocupado; inativar conta e desativar, mover ou trocar o tipo de espaços cancelam reservas (recusados com reserva confirmada em andamento), com motivo escolhido numa lista nas desativações e na inativação (C6, `reserva-avulsa`).
+7. Aprovação de reservas pendentes e expiração, e a listagem de reservas da unidade. Pendência da C4: mover um espaço de unidade muda quem aprova as reservas pendentes dele (a C6 já cancela as pendentes do espaço movido).
+8. Prioridade, deslocamento e fila de espera. Pendência da C6: vaga retida pela fila e deslocamento por prioridade no ponto de extensão do conflito da criação; `nivel_prioridade` e `criado_em` já são gravados.
+9. Cancelamento tardio, check-in, faltas e penalidades (inclui contestação). Pendências da C6: penalidade ativa no ponto de extensão da criação; cancelamento tardio com o mesmo prazo; fechamento de reservas passadas; rever o que conta como reserva em andamento se o check-in mudar isso.
+10. Bloqueios. Pendência da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
 11. Reserva recorrente de sala de aula.
 12. Avaliações.
-13. Notificações in-app.
+13. Notificações in-app. Pendência da C6: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`).
 14. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível.
 
 ## 12. Fonte de verdade e documentação

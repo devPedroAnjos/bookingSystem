@@ -60,7 +60,7 @@ Pessoa que acessa o sistema. Tem exatamente **um papel**.
 - Conta de coordenador nasce `PENDENTE` e só fica `ATIVA` após aprovação de um admin; ao ser aprovada, passa a coordenar a unidade pedida.
 - A recusa exige motivo. O titular pode reenviar o pedido até o limite de pedidos; a recusa automática por desativação da unidade não consome pedido. Só o admin aprova conta `RECUSADA`.
 - Só contas `ATIVA` podem autenticar. Com senha provisória, a conta só consulta os próprios dados e troca a senha.
-- Um admin inativa uma conta `ATIVA` com motivo (registrado só na auditoria) e reativa uma conta `INATIVA`. As coordenações ficam guardadas durante a inativação; na reativação, só as de unidades ativas e com vaga continuam. Professor com unidade desativada recebe nova unidade, e admin só volta se houver vaga no limite.
+- Um admin inativa uma conta `ATIVA` com um motivo escolhido numa lista fixa (desligamento da instituição, conclusão de curso, trancamento ou afastamento, uso indevido do sistema, conta duplicada, pedido do titular ou "Outro" com descrição), registrado só na auditoria, e reativa uma conta `INATIVA`. A inativação cancela as reservas da conta que ainda não começaram (motivo `CONTA_INATIVADA`, sem falta e sem mostrar o motivo da inativação); a reserva em andamento continua. A reativação não restaura reservas. As coordenações ficam guardadas durante a inativação; na reativação, só as de unidades ativas e com vaga continuam. Professor com unidade desativada recebe nova unidade, e admin só volta se houver vaga no limite.
 - Trocar ou redefinir a senha invalida os tokens emitidos antes. A redefinição pelo admin deixa a senha provisória.
 - O papel `ADMIN` é atribuído somente pelo **admin principal**, criando a conta (com senha provisória) ou promovendo um coordenador ativo, que perde as coordenações; o cadastro nunca o concede. Há no máximo `max_admins` admins `ATIVA`, contando o principal.
 - Existe exatamente **um admin principal**. Ele não é alvo de nenhuma operação sobre contas. Admins secundários só são inativados, reativados, rebaixados (somente a `COORDENADOR`, com de 1 a 2 unidades) ou têm a senha redefinida pelo principal.
@@ -78,7 +78,8 @@ Campus ou prédio da instituição.
 **Regras estruturais:**
 - Coordenadores só visualizam e alteram dados (espaços, bloqueios, reservas pendentes, aprovação de professor) das unidades que coordenam.
 - Só o admin cria unidades, sempre com um coordenador (movido ou acrescentado), corrige nome e endereço (nome único sem diferenciar maiúsculas e minúsculas), desativa e reativa. Unidades nunca são excluídas.
-- Desativar uma unidade exige destino para cada coordenador que só coordena ela e para cada professor dela. Os pedidos pendentes dela são recusados automaticamente. Reativada, ela volta sem coordenadores e sem professores.
+- Desativar uma unidade exige um motivo da lista de desativação (§2.9) e destino para cada coordenador que só coordena ela e para cada professor dela. Os pedidos pendentes dela são recusados automaticamente. Reativada, ela volta sem coordenadores e sem professores.
+- Desativar a unidade é recusado enquanto algum espaço dela tiver reserva confirmada em andamento; sem isso, as reservas dos espaços dela que ainda não terminaram são canceladas (§2.9).
 - Desativar ou reativar a unidade não altera os espaços dela. Enquanto ela estiver desativada, os espaços não são reserváveis, e não se cria espaço nela.
 
 ### 2.3 Coordenação de Unidade (associativa)
@@ -107,6 +108,7 @@ Categoria de espaço com regras de uso próprias. Tipos iniciais: **Sala de aula
 **Regras estruturais:**
 - Qualquer admin cria, edita, desativa e reativa tipos. O nome é único, sem diferenciar maiúsculas e minúsculas. Tipos nunca são excluídos.
 - Desativar um tipo não altera os espaços dele, mas eles deixam de ser reserváveis. Um tipo desativado não pode ser escolhido para espaços novos nem para a troca de tipo.
+- Desativar um tipo exige um motivo da lista de desativação e é recusado enquanto algum espaço do tipo, em qualquer unidade, tiver reserva confirmada em andamento; sem isso, as reservas desses espaços que ainda não terminaram são canceladas (§2.9).
 - Um tipo só é reservável com **regras completas**: as oito regras preenchidas e uma RegraPapel para aluno e outra para professor. Sem elas, os espaços do tipo não são reserváveis (motivo `TIPO_SEM_REGRAS`) e a página de tipos o destaca como "sem regras".
 - Os quatro tipos iniciais recebem as regras numa carga única da carga inicial, feita só enquanto não há nenhuma RegraPapel (valores no `project-overview.md`, §7.2). Os demais tipos, inclusive os criados depois, nascem sem regras até o admin defini-las.
 - Abertura e fechamento ficam no mesmo dia (de 0 a 1439 minutos; o fechamento é sempre antes da meia-noite), com a abertura antes do fechamento. Durações e horários são múltiplos da granularidade (§2.18), e a duração máxima cabe no horário do tipo.
@@ -142,6 +144,7 @@ Local físico reservável.
 - Espaços nunca são excluídos: só desativados e reativados.
 - **Disponibilidade derivada:** o espaço só é reservável quando ele, a unidade dele e o tipo dele estão ativos. Espaço não reservável não aparece na busca e não aceita novas reservas.
 - Quem gere o espaço troca o tipo dele (só para tipo ativo). Só o admin move o espaço para outra unidade ativa, sem colisão de código no destino.
+- Desativar o espaço (com um motivo da lista de desativação), trocar o tipo dele ou movê-lo de unidade é recusado enquanto houver reserva confirmada em andamento no espaço; sem isso, as reservas dele que ainda não terminaram são canceladas (§2.9). Editar outros campos não afeta reservas, e reativar não as restaura.
 
 ### 2.7 Recurso e Espaço-Recurso
 
@@ -164,7 +167,7 @@ Período em que um espaço fica indisponível.
 
 Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito central do sistema.
 
-**Principais informações:** usuário; espaço; início; fim; situação; nível de prioridade (cópia do nível do usuário no momento da criação); origem (`DIRETA`, `FILA`, `RECORRENTE`); série (se recorrente); data/hora de criação; decisão de aprovação (quem, quando, motivo da recusa); cancelamento (quem, quando, motivo); check-in.
+**Principais informações:** usuário; espaço; início; fim; situação; nível de prioridade (cópia do nível do usuário no momento da criação); origem (`DIRETA`, `FILA`, `RECORRENTE`); série (se recorrente); data/hora de criação; decisão de aprovação (quem, quando, motivo da recusa); cancelamento (quem, quando, motivo e, na desativação, o motivo da desativação com a descrição de "Outro"); check-in.
 
 **Ciclo de vida:**
 
@@ -175,7 +178,8 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
                    │                            │
                    │                            └──► EXPIRADA (sem decisão até o início)
                    │
-                   ├──► CANCELADA  (USUARIO | USUARIO_TARDIO | BLOQUEIO | PRIORIDADE | SERIE)
+                   ├──► CANCELADA  (USUARIO | USUARIO_TARDIO | BLOQUEIO | PRIORIDADE | SERIE
+                   │                | CONTA_INATIVADA | ESPACO_INDISPONIVEL)
                    ├──► CONCLUIDA  (check-in feito; após o término)
                    └──► NAO_COMPARECEU (sem check-in na janela)
 ```
@@ -184,11 +188,17 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
 - **Finais:** `CONCLUIDA`, `NAO_COMPARECEU`, `CANCELADA`, `RECUSADA`, `EXPIRADA`.
 
 **Regras estruturais:**
-- `inicio < fim`, mesmo dia, dia útil, dentro do horário do tipo, múltiplos de 10 minutos, respeitando duração mínima e máxima.
-- **Não pode haver duas reservas ativas sobrepostas no mesmo espaço** (`a.inicio < b.fim` e `b.inicio < a.fim`).
+- `inicio < fim`, mesmo dia, num dia de funcionamento, dentro do horário do tipo, em múltiplos da granularidade (§2.18), respeitando duração mínima e máxima e a antecedência mínima e máxima do tipo, avaliados em America/Sao_Paulo.
+- O usuário reserva só para si. A reserva nasce `PENDENTE` quando a RegraPapel exige aprovação e `CONFIRMADA` caso contrário. As regras valem no momento da criação: mudá-las depois não altera reservas existentes.
+- Um usuário tem no máximo `max_reservas_ativas_usuario` reservas `PENDENTE` ou `CONFIRMADA` que ainda não terminaram em espaços do mesmo tipo.
+- **Não pode haver duas reservas ativas sobrepostas no mesmo espaço** (`a.inicio < b.fim` e `b.inicio < a.fim`); reservas que só se encostam não conflitam. A verificação e a gravação são atômicas.
+- O próprio usuário cancela uma reserva ativa sem falta até o prazo de cancelamento (§2.18) antes do início, inclusive exatamente no limite (motivo `USUARIO`).
+- Inativar a conta cancela as reservas dela que ainda não começaram (motivo `CONTA_INATIVADA`); a reserva em andamento continua.
+- Desativar o espaço, o tipo ou a unidade, trocar o tipo do espaço ou movê-lo de unidade é recusado enquanto algum espaço afetado tiver reserva `CONFIRMADA` em andamento. Sem isso, as reservas `PENDENTE` e `CONFIRMADA` dos espaços afetados que ainda não terminaram são canceladas (motivo `ESPACO_INDISPONIVEL`), inclusive a pendente cujo início já passou. Nas desativações, cada reserva cancelada guarda o motivo escolhido na lista de desativação (manutenção ou reforma, problema de infraestrutura, interdição ou risco à segurança, equipamentos ou recursos indisponíveis, mudança de uso, baixa utilização, encerramento das atividades no local ou "Outro" com descrição), que o usuário vê na lista das próprias reservas. Admin e coordenador seguem a mesma regra.
+- Cancelamentos automáticos registram quem executou a ação e não geram falta. Reservas que já terminaram nunca são alteradas por eles, e reativações não restauram reservas.
 - Não pode sobrepor uma vaga retida pela fila de espera (entrada `NOTIFICADA`), exceto a reserva gerada pela confirmação dessa própria entrada.
 - Não pode sobrepor um bloqueio ativo.
-- Cancelamento com motivo `USUARIO_TARDIO` (menos de 2h antes) ou situação `NAO_COMPARECEU` gera uma **Falta**.
+- Cancelamento com motivo `USUARIO_TARDIO` (depois do prazo de cancelamento, §2.18) ou situação `NAO_COMPARECEU` gera uma **Falta**.
 - Cancelamento por `PRIORIDADE` registra **qual reserva deslocou** a anterior (autorrelacionamento).
 - Cancelamento por `BLOQUEIO` registra **qual bloqueio** o causou.
 - Reservas nunca são excluídas fisicamente.
@@ -295,6 +305,7 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 - A granularidade é um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60), e a mudança é recusada se deixar algum tipo com regras fora dela.
 - Os dias de funcionamento são uma lista de dias ISO (1 = segunda a 7 = domingo), com pelo menos um dia.
 - O horário 08h00–22h40 não é parâmetro global: é o padrão de abertura e fechamento de cada tipo (§2.4).
+- O prazo de cancelamento sem penalidade é um inteiro a partir de 1 minuto. O cancelamento é aceito enquanto faltar pelo menos o prazo até o início da reserva.
 
 ---
 
@@ -558,7 +569,9 @@ erDiagram
         string motivo_recusa
         int cancelado_por_id FK
         timestamp cancelado_em
-        enum motivo_cancelamento "USUARIO|USUARIO_TARDIO|BLOQUEIO|PRIORIDADE|SERIE"
+        enum motivo_cancelamento "USUARIO|USUARIO_TARDIO|BLOQUEIO|PRIORIDADE|SERIE|CONTA_INATIVADA|ESPACO_INDISPONIVEL"
+        string motivo_detalhe "código do motivo da desativação"
+        string motivo_descricao "texto de Outro"
         int deslocada_por_reserva_id FK
         int bloqueio_id FK
         timestamp check_in_em
@@ -669,20 +682,20 @@ erDiagram
 | `espaco` | `codigo` único por (`unidade_id`, `codigo`), sem diferenciar maiúsculas e minúsculas; `capacidade >= 1`. Nunca excluído. |
 | `recurso` | `nome` único, sem diferenciar maiúsculas e minúsculas. Excluído só quando nenhum `espaco_recurso` o referencia. |
 | `espaco_recurso` | Único por (`espaco_id`, `recurso_id`); `quantidade >= 1`. |
-| `reserva` | `inicio < fim`. Sem sobreposição entre reservas ativas do mesmo espaço, nem com entrada de fila `NOTIFICADA` (exceto a reserva gerada pela própria entrada), garantida de forma atômica no backend. |
+| `reserva` | `inicio < fim`. Sem sobreposição entre reservas ativas do mesmo espaço, nem com entrada de fila `NOTIFICADA` (exceto a reserva gerada pela própria entrada), garantida de forma atômica no backend. `motivo_detalhe` e `motivo_descricao` só com `motivo_cancelamento` `ESPACO_INDISPONIVEL` por desativação. Nunca excluída. |
 | `bloqueio` | `inicio < fim`. |
 | `entrada_fila` | Única ativa por (`usuario_id`, `espaco_id`, `inicio`, `fim`). |
 | `falta` | `reserva_id` único. |
 | `contestacao` | `penalidade_id` único. |
 | `avaliacao` | `reserva_id` único; `nota` entre 1 e 5. |
 | `log_auditoria` | Somente inserção. |
-| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um. |
+| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um; `prazo_cancelamento_minutos >= 1`. |
 
 ### A.2 Índices recomendados
 
 - `espaco (unidade_id, codigo)` (único), `espaco (tipo_espaco_id)` e `espaco_recurso (recurso_id)`.
-- `reserva (espaco_id, inicio, fim, status)` — verificação de conflito e busca.
-- `reserva (usuario_id, status)` — "minhas reservas" e limite de reservas ativas.
+- `reserva (espaco_id, inicio, fim, status)` — verificação de conflito e busca. A C6 criou `reserva (espaco_id, inicio)`, suficiente na escala atual.
+- `reserva (usuario_id, status)` — "minhas reservas" e limite de reservas ativas. A C6 criou `reserva (usuario_id)`.
 - `bloqueio (espaco_id, inicio, fim, status)`.
 - `entrada_fila (espaco_id, inicio, fim, status, nivel_prioridade, criado_em)`.
 - `falta (usuario_id, ocorrida_em)` — cálculo de penalidade.
