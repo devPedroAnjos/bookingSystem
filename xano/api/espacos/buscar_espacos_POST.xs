@@ -1,8 +1,9 @@
 // Busca de espaços para qualquer conta ativa (spec busca-espacos; design D7). Espaços de todas as
 // unidades, só reserváveis e só de tipos que o papel pode reservar. Filtros opcionais: unidade,
 // tipo, capacidade mínima, recursos (todos) e data com hora de início e fim (juntos). Com horário,
-// cada espaço diz se o pedido está dentro das regras do tipo e os motivos; nunca diz "livre",
-// porque reservas e bloqueios não são verificados aqui. POST para receber listas no corpo (D5).
+// cada espaço diz se o pedido está dentro das regras do tipo e os motivos, e se está ocupado por
+// reserva PENDENTE ou CONFIRMADA sobreposta (C6, D13), sem dizer quem ocupa. É informativo: a
+// reserva confere tudo de novo. Bloqueios entram na C10. POST para receber listas no corpo (D5).
 // Busca espaços reserváveis pelo usuário
 query buscar_espacos verb=POST {
   api_group = "espacos"
@@ -53,42 +54,43 @@ query buscar_espacos verb=POST {
     var $configuracao {
       value = null
     }
+
+    var $ids_ocupados {
+      value = []
+    }
   
-    // Formato antes da conversão: to_timestamp aceita texto livre ("next friday") (design D7)
+    // Formato e conversão compartilhados com a criação de reserva (C6, design D3)
     conditional {
       if ($com_horario) {
-        precondition (($data|strlen) > 0 && ($hora_inicio|strlen) > 0 && ($hora_fim|strlen) > 0) {
-          error_type = "inputerror"
-          error = "Informe a data, a hora de início e a hora de fim juntas."
-        }
-      
-        precondition (("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/"|regex_matches:$data) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_inicio) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_fim)) {
-          error_type = "inputerror"
-          error = "Informe a data no formato AAAA-MM-DD e as horas no formato HH:MM, com valores existentes."
-        }
-      
+        function.run converter_horario_pedido {
+          input = {
+            data       : $data
+            hora_inicio: $hora_inicio
+            hora_fim   : $hora_fim
+          }
+        } as $horario
+
         var.update $inicio {
-          value = ($data ~ " " ~ $hora_inicio)|to_timestamp:"America/Sao_Paulo"
+          value = $horario.inicio
         }
-      
+
         var.update $fim {
-          value = ($data ~ " " ~ $hora_fim)|to_timestamp:"America/Sao_Paulo"
+          value = $horario.fim
         }
-      
-        // Data inexistente (2026-02-30) volta diferente do texto informado
-        precondition (($inicio|format_timestamp:"Y-m-d":"America/Sao_Paulo") == $data) {
-          error_type = "inputerror"
-          error = "Informe a data no formato AAAA-MM-DD e as horas no formato HH:MM, com valores existentes."
-        }
-      
-        precondition ($fim > $inicio) {
-          error_type = "inputerror"
-          error = "A hora de fim deve ser depois da hora de início."
-        }
-      
+
         function.run obter_configuracao_horario as $configuracao_horario
         var.update $configuracao {
           value = $configuracao_horario
+        }
+
+        // Uma consulta para todos os espaços: reservas ativas sobrepostas ao intervalo (D7, D13)
+        db.query reserva {
+          where = $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          return = {type: "list"}
+        } as $sobrepostas
+
+        var.update $ids_ocupados {
+          value = $sobrepostas|map:$$.espaco_id|unique
         }
       }
     }
@@ -228,10 +230,15 @@ query buscar_espacos verb=POST {
                       }
                     } as $validacao
                   
+                    var $ocupado {
+                      value = $ids_ocupados|in:$espaco.id
+                    }
+
                     var.update $item {
                       value = $item
                         |set:"dentro_das_regras":$validacao.dentro_das_regras
                         |set:"motivos":$validacao.motivos
+                        |set:"ocupado":$ocupado
                     }
                   }
                 }

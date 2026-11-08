@@ -26,6 +26,7 @@ query parametros verb=GET {
     max_admins               : $configuracao.max_admins
     granularidade_minutos    : $configuracao.granularidade_minutos
     dias_funcionamento       : $configuracao.dias_funcionamento
+    prazo_cancelamento_minutos: $configuracao.prazo_cancelamento_minutos
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"

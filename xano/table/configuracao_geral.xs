@@ -22,6 +22,10 @@ table configuracao_geral {
     int? granularidade_minutos?
 
     int[] dias_funcionamento?
+
+    // Reservas (C6, design D12): minutos antes do início até os quais o usuário cancela sem falta.
+    // Preenchido pelo bootstrap; lido direto da tabela por cancelar_reserva e minhas_reservas.
+    int? prazo_cancelamento_minutos?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]
