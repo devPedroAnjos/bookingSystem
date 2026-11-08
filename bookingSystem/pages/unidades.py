@@ -2,9 +2,16 @@
 
 import reflex as rx
 
-from bookingSystem.pages.componentes import dialogo, mensagem, seletor
+from bookingSystem.pages.componentes import (
+    aviso_impacto,
+    campos_motivo,
+    dialogo,
+    mensagem,
+    seletor,
+)
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.auth_state import AuthState
+from bookingSystem.state.motivos import MOTIVOS_DESATIVACAO
 from bookingSystem.state.unidades_state import UnidadesState
 
 
@@ -184,7 +191,11 @@ def dialogo_desativar() -> rx.Component:
             color_scheme="orange",
             width="100%",
         ),
+        mensagem(UnidadesState.erro_dialogo, "red"),
+        campos_motivo(MOTIVOS_DESATIVACAO, aviso_outro=True),
+        aviso_impacto(),
         botao="Desativar",
+        limpar_ao_enviar=False,
     )
 
 

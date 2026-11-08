@@ -8,6 +8,7 @@ import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
+from bookingSystem.state.motivos import abrir_dialogo_com_impacto, ler_motivo
 
 MOTIVOS = {
     "ESPACO_DESATIVADO": "espaço desativado",
@@ -94,6 +95,10 @@ class EspacosState(rx.State):
     mover_espaco_id: str = ""
     mover_espaco_nome: str = ""
     destinos_mover: list[dict[str, str]] = []
+
+    desativar_aberta: bool = False
+    desativar_id: str = ""
+    desativar_nome: str = ""
 
     _por_id: dict[str, dict] = {}
 
@@ -189,6 +194,8 @@ class EspacosState(rx.State):
                 "nome": espaco["tipo_nome"] + " (desativado)",
             })
         self.editar_aberta = True
+        # Aviso para o caso de troca de tipo, que cancela reservas (D8)
+        return abrir_dialogo_com_impacto("espaco_id", espaco["id"])
 
     @rx.event
     def mudar_editar(self, aberta: bool):
@@ -252,10 +259,28 @@ class EspacosState(rx.State):
     # ---------- situação e mudança de unidade ----------
 
     @rx.event
-    async def desativar(self, espaco_id: str):
+    def abrir_desativar(self, espaco: dict):
         self._limpar_mensagens()
+        self.desativar_id = espaco["id"]
+        self.desativar_nome = espaco["nome"]
+        self.desativar_aberta = True
+        return abrir_dialogo_com_impacto("espaco_id", espaco["id"])
+
+    @rx.event
+    def mudar_desativar(self, aberta: bool):
+        self.desativar_aberta = aberta
+
+    @rx.event
+    async def confirmar_desativar(self, dados: dict):
+        self._limpar_mensagens()
+        codigo, descricao, self.erro_dialogo = ler_motivo(dados)
+        if self.erro_dialogo:
+            return
+        self.desativar_aberta = False
         token = await token_da_sessao(self)
-        return await self._executar(api.desativar_espaco(token, int(espaco_id)))
+        return await self._executar(
+            api.desativar_espaco(token, int(self.desativar_id), codigo, descricao)
+        )
 
     @rx.event
     async def reativar(self, espaco_id: str):
@@ -272,6 +297,7 @@ class EspacosState(rx.State):
             u for u in self.unidades_ativas if u["id"] != espaco["unidade_id"]
         ]
         self.mover_aberta = True
+        return abrir_dialogo_com_impacto("espaco_id", espaco["id"])
 
     @rx.event
     def mudar_mover(self, aberta: bool):

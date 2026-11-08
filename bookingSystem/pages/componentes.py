@@ -2,6 +2,14 @@
 
 import reflex as rx
 
+from bookingSystem.state.motivos import (
+    AVISO_OUTRO_VISIVEL,
+    OUTRO,
+    TAMANHO_MAXIMO_DESCRICAO,
+    ImpactoState,
+    MotivoState,
+)
+
 
 def mensagem(texto: rx.Var[str], cor: str) -> rx.Component:
     """Mostra a mensagem só quando o texto não está vazio."""
@@ -49,6 +57,46 @@ def seletor(
         ),
         name=nome,
         **extras,
+    )
+
+
+def campos_motivo(motivos: dict[str, str], aviso_outro: bool) -> rx.Component:
+    """Caixa de seleção do motivo e, em "Outro", o campo de descrição (D17).
+
+    Os nomes `motivo_codigo` e `motivo_descricao` são os da API.
+    """
+    return rx.vstack(
+        rx.select.root(
+            rx.select.trigger(placeholder="Motivo", width="100%"),
+            rx.select.content(
+                *[
+                    rx.select.item(rotulo, value=codigo)
+                    for codigo, rotulo in motivos.items()
+                ]
+            ),
+            name="motivo_codigo",
+            on_change=MotivoState.escolher,
+        ),
+        rx.cond(
+            MotivoState.codigo == OUTRO,
+            rx.text_area(
+                name="motivo_descricao",
+                placeholder="Descreva o motivo",
+                max_length=TAMANHO_MAXIMO_DESCRICAO,
+                width="100%",
+            ),
+        ),
+        rx.text(AVISO_OUTRO_VISIVEL, size="1") if aviso_outro else rx.fragment(),
+        spacing="2",
+        width="100%",
+    )
+
+
+def aviso_impacto(prefixo: str = "") -> rx.Component:
+    """Reservas afetadas pela ação do diálogo, vindas da rota de impacto (D8)."""
+    return rx.cond(
+        ImpactoState.aviso != "",
+        rx.callout(prefixo + ImpactoState.aviso, color_scheme="orange", width="100%"),
     )
 
 

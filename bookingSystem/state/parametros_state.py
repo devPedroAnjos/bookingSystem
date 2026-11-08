@@ -16,6 +16,7 @@ LIMITES = (
     "max_unidades_coordenador",
     "max_admins",
     "granularidade_minutos",
+    "prazo_cancelamento_minutos",
 )
 
 # Dias de funcionamento em ISO: 1 = segunda a 7 = domingo

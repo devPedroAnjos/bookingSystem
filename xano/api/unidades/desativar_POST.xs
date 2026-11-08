@@ -2,8 +2,11 @@
 // - coordenador que só coordena esta unidade recebe destino (ativo, com vaga, contando o formulário);
 // - coordenador que também coordena outra apenas perde esta;
 // - cada professor ATIVA da unidade recebe destino ativo;
-// - pedidos PENDENTE da unidade são recusados automaticamente, sem consumir pedido.
-// Tudo é validado antes de qualquer gravação; se algo falhar, nada muda.
+// - pedidos PENDENTE da unidade são recusados automaticamente, sem consumir pedido;
+// - reservas dos espaços da unidade que ainda não terminaram são canceladas, levando o motivo
+//   (C6, D10 e D17); com reserva confirmada em andamento, a desativação é recusada.
+// Motivo obrigatório da lista de desativação. Tudo é validado antes de qualquer gravação; se algo
+// falhar, nada muda.
 // Desativa uma unidade, redistribuindo coordenadores e professores, dentro da trava de governança
 query desativar verb=POST {
   api_group = "unidades"
@@ -13,9 +16,24 @@ query desativar verb=POST {
     int unidade_id
     json? destinos_coordenadores?
     json? destinos_professores?
+    text? motivo_codigo? filters=trim
+    text? motivo_descricao? filters=trim
   }
 
   stack {
+    function.run validar_motivo {
+      input = {
+        lista    : "desativacao"
+        codigo   : $input.motivo_codigo
+        descricao: $input.motivo_descricao
+      }
+    } as $motivo
+
+    // Declarada fora da transação, como $unidade_criada_id em unidades/criar
+    var $texto_cancelamento {
+      value = ""
+    }
+
     var $destinos_coordenadores {
       value = $input.destinos_coordenadores|first_notnull:[]
     }
@@ -48,7 +66,29 @@ query desativar verb=POST {
           error_type = "inputerror"
           error = "A unidade já está desativada."
         }
-      
+
+        // 0. Reserva confirmada em andamento recusa tudo, antes de coordenadores, professores e pedidos
+        db.query espaco {
+          where = $db.espaco.unidade_id == $unidade.id
+          return = {type: "list"}
+        } as $espacos_da_unidade
+
+        var $espacos_ids {
+          value = $espacos_da_unidade|map:$$.id
+        }
+
+        var $agora {
+          value = now
+        }
+
+        function.run exigir_sem_reserva_em_andamento {
+          input = {
+            espacos_ids   : $espacos_ids
+            agora         : $agora
+            varios_espacos: true
+          }
+        } as $sem_reserva_em_uso
+
         // 1. Coordenadores que só coordenam esta unidade precisam de destino
         function.run coordenadores_ativos {
           input = {unidade_id: $unidade.id}
@@ -147,7 +187,23 @@ query desativar verb=POST {
           }
         }
       
-        // 3. Gravações: coordenações, professores, pedidos pendentes e a unidade
+        // 3. Gravações: reservas, coordenações, professores, pedidos pendentes e a unidade
+        function.run cancelar_reservas {
+          input = {
+            modo            : "espaco"
+            espacos_ids     : $espacos_ids
+            motivo          : "ESPACO_INDISPONIVEL"
+            motivo_detalhe  : $motivo.codigo
+            motivo_descricao: $motivo.descricao
+            ator_id         : $ator.id
+            agora           : $agora
+          }
+        } as $cancelamento
+
+        var.update $texto_cancelamento {
+          value = $cancelamento.texto
+        }
+
         db.query coordenacao_unidade {
           where = $db.coordenacao_unidade.unidade_id == $unidade.id
           return = {type: "list"}
@@ -250,6 +306,13 @@ query desativar verb=POST {
           data = {ativa: false}
         } as $desativada
       
+        var $dados_depois_unidade {
+          value = {}
+            |set:"ativa":$desativada.ativa
+            |set:"motivo_codigo":$motivo.codigo
+            |set:"motivo_descricao":$motivo.descricao
+        }
+
         function.run registrar_auditoria {
           input = {
             ator_id     : $ator.id
@@ -258,13 +321,17 @@ query desativar verb=POST {
             entidade_id : $unidade.id
             unidade_id  : $unidade.id
             dados_antes : {ativa: $unidade.ativa}
-            dados_depois: {ativa: $desativada.ativa}
+            dados_depois: $dados_depois_unidade
           }
         } as $auditoria_desativacao
       }
     }
+
+    var $mensagem {
+      value = "Unidade desativada." ~ $texto_cancelamento
+    }
   }
 
-  response = {mensagem: "Unidade desativada."}
+  response = {mensagem: $mensagem}
   guid = "x1hUuD6hN0QoeahEYdsknHoPMdU"
 }

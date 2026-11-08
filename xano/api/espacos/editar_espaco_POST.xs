@@ -1,6 +1,8 @@
 // Edição de espaço por quem tem escopo sobre a unidade dele (spec espacos; design D4 e D6).
 // Tipo ativo só é exigido quando o tipo muda. A edição não muda unidade nem situação.
-// A auditoria guarda só os campos alterados.
+// A auditoria guarda só os campos alterados. Trocar o tipo é recusado, sem alterar nenhum campo,
+// com reserva confirmada em andamento; senão cancela as reservas que ainda não terminaram
+// (ESPACO_INDISPONIVEL, sem motivo próprio). Editar sem trocar o tipo não toca reservas (C6, D10).
 // Edita um espaço, dentro da trava de governança
 query editar_espaco verb=POST {
   api_group = "espacos"
@@ -58,6 +60,11 @@ query editar_espaco verb=POST {
       error = "A descrição deve ter até 500 caracteres."
     }
   
+    // Declarada fora da transação, como $unidade_criada_id em unidades/criar
+    var $texto_cancelamento {
+      value = ""
+    }
+  
     db.transaction {
       stack {
         function.run travar_governanca as $trava
@@ -73,8 +80,20 @@ query editar_espaco verb=POST {
           value = $carregado.espaco
         }
       
+        var $tipo_mudou {
+          value = false
+        }
+      
+        var $agora {
+          value = now
+        }
+      
         conditional {
           if ($input.tipo_espaco_id != $espaco.tipo_espaco_id) {
+            var.update $tipo_mudou {
+              value = true
+            }
+          
             db.get tipo_espaco {
               field_name = "id"
               field_value = $input.tipo_espaco_id
@@ -89,6 +108,10 @@ query editar_espaco verb=POST {
               error_type = "inputerror"
               error = "O tipo de espaço está desativado."
             }
+          
+            function.run exigir_sem_reserva_em_andamento {
+              input = {espacos_ids: [$espaco.id], agora: $agora}
+            } as $sem_reserva_em_uso
           }
         }
       
@@ -99,6 +122,25 @@ query editar_espaco verb=POST {
             ignorar_id: $espaco.id
           }
         } as $codigo_livre
+      
+        // Validações concluídas: só agora as gravações
+        conditional {
+          if ($tipo_mudou) {
+            function.run cancelar_reservas {
+              input = {
+                modo       : "espaco"
+                espacos_ids: [$espaco.id]
+                motivo     : "ESPACO_INDISPONIVEL"
+                ator_id    : $carregado.ator.id
+                agora      : $agora
+              }
+            } as $cancelamento
+          
+            var.update $texto_cancelamento {
+              value = $cancelamento.texto
+            }
+          }
+        }
       
         db.edit espaco {
           field_name = "id"
@@ -157,8 +199,12 @@ query editar_espaco verb=POST {
         } as $registro_auditoria
       }
     }
+  
+    var $mensagem {
+      value = "Espaço atualizado." ~ $texto_cancelamento
+    }
   }
 
-  response = {mensagem: "Espaço atualizado."}
+  response = {mensagem: $mensagem}
   guid = "mAwWmNMwnYBAlPtedClH9lYDmvM"
 }

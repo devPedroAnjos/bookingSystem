@@ -1,5 +1,5 @@
 // Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9 e da C5, D8).
-// Limites inteiros >= 1; ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
+// Limites inteiros >= 1, inclusive o prazo de cancelamento (C6, D12); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
 // granularidade divisora de 60 e compatível com as regras dos tipos (conferido na trava);
 // dias de funcionamento de 1 a 7, sem repetição, ao menos um.
 // Reduzir um limite não remove ninguém. Se algo for inválido, nada é gravado.
@@ -14,6 +14,7 @@ query parametros verb=POST {
     int? max_unidades_coordenador?
     int? max_pedidos_cadastro?
     int? max_admins?
+    int? prazo_cancelamento_minutos?
     int? granularidade_minutos?
     json? dias_funcionamento?
   }
@@ -44,6 +45,7 @@ query parametros verb=POST {
         max_unidades_coordenador : $input.max_unidades_coordenador
         max_pedidos_cadastro     : $input.max_pedidos_cadastro
         max_admins               : $input.max_admins
+        prazo_cancelamento_minutos: $input.prazo_cancelamento_minutos
       }
     }
   
@@ -131,6 +133,7 @@ query parametros verb=POST {
             max_unidades_coordenador : $antes.max_unidades_coordenador
             max_pedidos_cadastro     : $antes.max_pedidos_cadastro
             max_admins               : $antes.max_admins
+            prazo_cancelamento_minutos: $antes.prazo_cancelamento_minutos
             granularidade_minutos    : $antes.granularidade_minutos
             dias_funcionamento       : $antes.dias_funcionamento
           }
@@ -140,6 +143,7 @@ query parametros verb=POST {
             max_unidades_coordenador : $depois.max_unidades_coordenador
             max_pedidos_cadastro     : $depois.max_pedidos_cadastro
             max_admins               : $depois.max_admins
+            prazo_cancelamento_minutos: $depois.prazo_cancelamento_minutos
             granularidade_minutos    : $depois.granularidade_minutos
             dias_funcionamento       : $depois.dias_funcionamento
           }

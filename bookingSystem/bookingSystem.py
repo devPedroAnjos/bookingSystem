@@ -12,6 +12,7 @@ from bookingSystem.pages.cadastro import cadastro
 from bookingSystem.pages.espacos import espacos
 from bookingSystem.pages.inicio import inicio
 from bookingSystem.pages.login import login
+from bookingSystem.pages.minhas_reservas import minhas_reservas
 from bookingSystem.pages.parametros import parametros
 from bookingSystem.pages.recursos import recursos
 from bookingSystem.pages.tipos_espaco import tipos_espaco
@@ -30,6 +31,7 @@ from bookingSystem.state.contas_state import ContasState
 from bookingSystem.state.espacos_state import EspacosState
 from bookingSystem.state.parametros_state import ParametrosState
 from bookingSystem.state.recursos_state import RecursosState
+from bookingSystem.state.reservas_state import ReservasState
 from bookingSystem.state.senha_state import SenhaState
 from bookingSystem.state.tipos_espaco_state import TiposEspacoState
 from bookingSystem.state.unidades_state import UnidadesState
@@ -58,6 +60,12 @@ app.add_page(
     route="/buscar",
     title="Buscar espaços | BookingSystem",
     on_load=[AuthState.verificar_sessao, BuscaState.abrir],
+)
+app.add_page(
+    minhas_reservas,
+    route="/minhas-reservas",
+    title="Minhas reservas | BookingSystem",
+    on_load=[AuthState.verificar_sessao, ReservasState.abrir],
 )
 app.add_page(
     aprovacoes,

@@ -55,12 +55,13 @@ function bootstrap {
     // Valores padrão dos parâmetros (domain-model.md, §2.18)
     var $parametros_padrao {
       value = {
-        max_coordenadores_unidade: 4
-        max_unidades_coordenador : 2
-        max_pedidos_cadastro     : 3
-        max_admins               : 3
-        granularidade_minutos    : 10
-        dias_funcionamento       : [1, 2, 3, 4, 5]
+        max_coordenadores_unidade : 4
+        max_unidades_coordenador  : 2
+        max_pedidos_cadastro      : 3
+        max_admins                : 3
+        granularidade_minutos     : 10
+        dias_funcionamento        : [1, 2, 3, 4, 5]
+        prazo_cancelamento_minutos: 120
       }
     }
   
@@ -74,13 +75,14 @@ function bootstrap {
           if ($configuracao == null) {
             db.add configuracao_geral {
               data = {
-                dominios_email           : ["aluno.impacta.edu.br", "impacta.edu.br"]
-                max_coordenadores_unidade: $parametros_padrao.max_coordenadores_unidade
-                max_unidades_coordenador : $parametros_padrao.max_unidades_coordenador
-                max_pedidos_cadastro     : $parametros_padrao.max_pedidos_cadastro
-                max_admins               : $parametros_padrao.max_admins
-                granularidade_minutos    : $parametros_padrao.granularidade_minutos
-                dias_funcionamento       : $parametros_padrao.dias_funcionamento
+                dominios_email            : ["aluno.impacta.edu.br", "impacta.edu.br"]
+                max_coordenadores_unidade : $parametros_padrao.max_coordenadores_unidade
+                max_unidades_coordenador  : $parametros_padrao.max_unidades_coordenador
+                max_pedidos_cadastro      : $parametros_padrao.max_pedidos_cadastro
+                max_admins                : $parametros_padrao.max_admins
+                granularidade_minutos     : $parametros_padrao.granularidade_minutos
+                dias_funcionamento        : $parametros_padrao.dias_funcionamento
+                prazo_cancelamento_minutos: $parametros_padrao.prazo_cancelamento_minutos
               }
             } as $configuracao_criada
           

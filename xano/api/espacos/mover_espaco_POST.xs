@@ -1,6 +1,8 @@
 // Mudança de unidade de um espaço, só pelo admin (spec espacos; design D6). O destino precisa
 // existir, estar ativo, ser diferente da unidade atual e não ter outro espaço com o mesmo código.
-// O espaço mantém tipo, situação e recursos. O efeito sobre reservas é da C6/C7 (design D13).
+// O espaço mantém tipo, situação e recursos. Recusada, sem alterar nada, com reserva confirmada em
+// andamento; senão cancela as reservas que ainda não terminaram (ESPACO_INDISPONIVEL, sem motivo
+// próprio) ANTES de gravar a nova unidade, para a auditoria levar a unidade de origem (C6, D10/D11).
 // Move um espaço para outra unidade, dentro da trava de governança
 query mover_espaco verb=POST {
   api_group = "espacos"
@@ -12,6 +14,11 @@ query mover_espaco verb=POST {
   }
 
   stack {
+    // Declarada fora da transação, como $unidade_criada_id em unidades/criar
+    var $texto_cancelamento {
+      value = ""
+    }
+  
     db.transaction {
       stack {
         function.run travar_governanca as $trava
@@ -60,6 +67,29 @@ query mover_espaco verb=POST {
           }
         } as $codigo_livre
       
+        var $agora {
+          value = now
+        }
+      
+        function.run exigir_sem_reserva_em_andamento {
+          input = {espacos_ids: [$espaco.id], agora: $agora}
+        } as $sem_reserva_em_uso
+      
+        // Antes da nova unidade: CANCELAR_RESERVA com a unidade de origem (D11)
+        function.run cancelar_reservas {
+          input = {
+            modo       : "espaco"
+            espacos_ids: [$espaco.id]
+            motivo     : "ESPACO_INDISPONIVEL"
+            ator_id    : $ator.id
+            agora      : $agora
+          }
+        } as $cancelamento
+      
+        var.update $texto_cancelamento {
+          value = $cancelamento.texto
+        }
+      
         db.edit espaco {
           field_name = "id"
           field_value = $espaco.id
@@ -79,8 +109,12 @@ query mover_espaco verb=POST {
         } as $registro_auditoria
       }
     }
+  
+    var $mensagem {
+      value = "Espaço movido." ~ $texto_cancelamento
+    }
   }
 
-  response = {mensagem: "Espaço movido."}
+  response = {mensagem: $mensagem}
   guid = "Ic7sIIDeM9TSy93tgrh1vDreCek"
 }
