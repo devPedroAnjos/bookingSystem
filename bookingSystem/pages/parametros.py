@@ -15,6 +15,9 @@ ROTULOS_LIMITES = {
     "granularidade_minutos": (
         "Granularidade de horário, em minutos (divisor de 60: 5, 10, 15, 30...)"
     ),
+    "prazo_cancelamento_minutos": (
+        "Prazo de cancelamento sem penalidade, em minutos antes do início"
+    ),
 }
 
 NOMES_DIAS = {

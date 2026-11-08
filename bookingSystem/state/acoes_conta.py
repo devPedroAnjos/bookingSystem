@@ -10,9 +10,8 @@ import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
+from bookingSystem.state.motivos import abrir_dialogo_com_impacto, ler_motivo
 from bookingSystem.state.senha_state import TAMANHO_MINIMO_SENHA
-
-TAMANHO_MAXIMO_MOTIVO = 500
 
 
 def sim_nao(valor) -> str:
@@ -114,6 +113,7 @@ class AcoesContaMixin(rx.State, mixin=True):
     def abrir_inativacao(self, conta: dict):
         self._escolher_alvo(conta)
         self.inativacao_aberta = True
+        return abrir_dialogo_com_impacto("usuario_id", conta["id"])
 
     @rx.event
     def mudar_inativacao(self, aberta: bool):
@@ -121,17 +121,13 @@ class AcoesContaMixin(rx.State, mixin=True):
 
     @rx.event
     async def confirmar_inativacao(self, dados: dict):
-        motivo = str(dados.get("motivo", "")).strip()
-        if not motivo:
-            self.erro_dialogo = "Informe o motivo da inativação."
-            return
-        if len(motivo) > TAMANHO_MAXIMO_MOTIVO:
-            self.erro_dialogo = "O motivo deve ter no máximo 500 caracteres."
+        codigo, descricao, self.erro_dialogo = ler_motivo(dados)
+        if self.erro_dialogo:
             return
         self.inativacao_aberta = False
         alvo = int(self.alvo_id)
         return await self._enviar(
-            lambda token: api.inativar_conta(token, alvo, motivo)
+            lambda token: api.inativar_conta(token, alvo, codigo, descricao)
         )
 
     # ---------- reativação ----------

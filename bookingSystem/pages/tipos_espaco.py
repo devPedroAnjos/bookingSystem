@@ -2,9 +2,15 @@
 
 import reflex as rx
 
-from bookingSystem.pages.componentes import dialogo, mensagem
+from bookingSystem.pages.componentes import (
+    aviso_impacto,
+    campos_motivo,
+    dialogo,
+    mensagem,
+)
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.auth_state import AuthState
+from bookingSystem.state.motivos import MOTIVOS_DESATIVACAO
 from bookingSystem.state.tipos_espaco_state import TiposEspacoState
 
 # Mesmos limites validados no Xano (design D2)
@@ -154,7 +160,11 @@ def dialogo_desativar() -> rx.Component:
             color_scheme="orange",
             width="100%",
         ),
+        mensagem(TiposEspacoState.erro_dialogo, "red"),
+        campos_motivo(MOTIVOS_DESATIVACAO, aviso_outro=True),
+        aviso_impacto(),
         botao="Desativar",
+        limpar_ao_enviar=False,
     )
 
 

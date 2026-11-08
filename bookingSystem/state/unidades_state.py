@@ -7,6 +7,7 @@ import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
+from bookingSystem.state.motivos import abrir_dialogo_com_impacto, ler_motivo
 
 
 def _unidade_para_tela(unidade: dict) -> dict[str, str]:
@@ -51,6 +52,8 @@ class UnidadesState(rx.State):
     _coordenacoes_por_usuario: dict[str, int] = {}
     mensagem_erro: str = ""
     mensagem_sucesso: str = ""
+    # Erro de validação mostrado dentro do diálogo de desativar (padrão da C3)
+    erro_dialogo: str = ""
 
     criar_aberta: bool = False
     criar_modo: str = "ACRESCENTAR"
@@ -77,6 +80,7 @@ class UnidadesState(rx.State):
     def _limpar_mensagens(self):
         self.mensagem_erro = ""
         self.mensagem_sucesso = ""
+        self.erro_dialogo = ""
 
     @rx.event
     async def carregar(self):
@@ -196,6 +200,7 @@ class UnidadesState(rx.State):
             _pessoa(p) for p in gerida.get("professores") or []
         ]
         self.desativar_aberta = True
+        return abrir_dialogo_com_impacto("unidade_id", unidade_id)
 
     @rx.event
     def mudar_desativar(self, aberta: bool):
@@ -217,7 +222,10 @@ class UnidadesState(rx.State):
             if d["unidade_id"] is None
         ]
         if faltando:
-            self.mensagem_erro = "Escolha uma unidade de destino para cada pessoa."
+            self.erro_dialogo = "Escolha uma unidade de destino para cada pessoa."
+            return
+        codigo, descricao, self.erro_dialogo = ler_motivo(dados)
+        if self.erro_dialogo:
             return
         self.desativar_aberta = False
         token = await token_da_sessao(self)
@@ -227,6 +235,8 @@ class UnidadesState(rx.State):
                 int(self.desativar_id),
                 destinos_coordenadores,
                 destinos_professores,
+                codigo,
+                descricao,
             )
         )
 

@@ -6,7 +6,15 @@ State (ambos herdam `AcoesContaMixin`).
 
 import reflex as rx
 
-from bookingSystem.pages.componentes import campo_senha, dialogo, mensagem, seletor
+from bookingSystem.pages.componentes import (
+    aviso_impacto,
+    campo_senha,
+    campos_motivo,
+    dialogo,
+    mensagem,
+    seletor,
+)
+from bookingSystem.state.motivos import MOTIVOS_CONTA
 
 
 def _aviso(texto: str | rx.Var[str]) -> rx.Component:
@@ -20,8 +28,9 @@ def dialogo_inativacao(estado) -> rx.Component:
         "Inativar " + estado.alvo_nome,
         estado.confirmar_inativacao,
         _aviso(
-            "A pessoa perde o acesso na hora. O motivo fica só no registro "
-            "de auditoria e não é mostrado a ela."
+            "A pessoa perde o acesso na hora. As reservas dela que ainda não "
+            "começaram são canceladas; a que estiver em andamento continua. O "
+            "motivo fica só no registro de auditoria e não é mostrado a ela."
         ),
         rx.cond(
             estado.alvo_papel == "COORDENADOR",
@@ -31,13 +40,10 @@ def dialogo_inativacao(estado) -> rx.Component:
             ),
         ),
         mensagem(estado.erro_dialogo, "red"),
-        rx.text_area(
-            name="motivo",
-            placeholder="Motivo (obrigatório)",
-            max_length=500,
-            width="100%",
-        ),
+        campos_motivo(MOTIVOS_CONTA, aviso_outro=False),
+        aviso_impacto(),
         botao="Inativar",
+        limpar_ao_enviar=False,
     )
 
 

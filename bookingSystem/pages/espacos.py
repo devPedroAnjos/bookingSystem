@@ -2,10 +2,17 @@
 
 import reflex as rx
 
-from bookingSystem.pages.componentes import dialogo, mensagem, seletor
+from bookingSystem.pages.componentes import (
+    aviso_impacto,
+    campos_motivo,
+    dialogo,
+    mensagem,
+    seletor,
+)
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.auth_state import AuthState
 from bookingSystem.state.espacos_state import EspacosState
+from bookingSystem.state.motivos import MOTIVOS_DESATIVACAO
 
 # Mesmos limites validados no Xano (design D2)
 MAX_NOME = 100
@@ -66,7 +73,7 @@ def linha_espaco(espaco: rx.Var[dict[str, str]]) -> rx.Component:
                         size="1",
                         color_scheme="red",
                         variant="soft",
-                        on_click=EspacosState.desativar(espaco["id"]),
+                        on_click=EspacosState.abrir_desativar(espaco),
                     ),
                     rx.button(
                         "Reativar",
@@ -205,6 +212,7 @@ def dialogo_editar() -> rx.Component:
             valor_inicial=EspacosState.editar["tipo_id"],
         ),
         *campos_espaco(EspacosState.editar),
+        aviso_impacto("Se o tipo for trocado: "),
         botao="Salvar",
         limpar_ao_enviar=False,
     )
@@ -248,7 +256,22 @@ def dialogo_mover() -> rx.Component:
         mensagem(EspacosState.erro_dialogo, "red"),
         seletor("unidade_id", EspacosState.destinos_mover, "Unidade de destino"),
         rx.text("O espaço mantém tipo, situação e recursos.", size="1"),
+        aviso_impacto(),
         botao="Mover",
+        limpar_ao_enviar=False,
+    )
+
+
+def dialogo_desativar() -> rx.Component:
+    return dialogo(
+        EspacosState.desativar_aberta,
+        EspacosState.mudar_desativar,
+        "Desativar " + EspacosState.desativar_nome,
+        EspacosState.confirmar_desativar,
+        mensagem(EspacosState.erro_dialogo, "red"),
+        campos_motivo(MOTIVOS_DESATIVACAO, aviso_outro=True),
+        aviso_impacto(),
+        botao="Desativar",
         limpar_ao_enviar=False,
     )
 
@@ -269,5 +292,6 @@ def espacos() -> rx.Component:
         dialogo_editar(),
         dialogo_recursos(),
         dialogo_mover(),
+        dialogo_desativar(),
         permitido=AuthState.e_gestor,
     )

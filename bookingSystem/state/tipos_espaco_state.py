@@ -9,6 +9,7 @@ import reflex as rx
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
 from bookingSystem.state.horarios import hhmm_para_minutos, minutos_para_hhmm
+from bookingSystem.state.motivos import abrir_dialogo_com_impacto, ler_motivo
 
 # Regras em número inteiro (minutos, dias ou quantidade), como no Xano
 REGRAS_NUMERICAS = (
@@ -183,18 +184,24 @@ class TiposEspacoState(rx.State):
         self.desativar_espacos = tipo["espacos_ativos"]
         self.desativar_unidades = tipo["unidades"]
         self.desativar_aberta = True
+        return abrir_dialogo_com_impacto("tipo_espaco_id", tipo["id"])
 
     @rx.event
     def mudar_desativar(self, aberta: bool):
         self.desativar_aberta = aberta
 
     @rx.event
-    async def confirmar_desativar(self, _dados: dict):
+    async def confirmar_desativar(self, dados: dict):
         self._limpar_mensagens()
+        codigo, descricao, self.erro_dialogo = ler_motivo(dados)
+        if self.erro_dialogo:
+            return
         self.desativar_aberta = False
         token = await token_da_sessao(self)
         return await self._executar(
-            api.desativar_tipo_espaco(token, int(self.desativar_id))
+            api.desativar_tipo_espaco(
+                token, int(self.desativar_id), codigo, descricao
+            )
         )
 
     @rx.event

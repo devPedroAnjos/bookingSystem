@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from bookingSystem.pages.componentes import mensagem, seletor
+from bookingSystem.pages.componentes import dialogo, mensagem, seletor
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.busca_state import TODOS, BuscaState
 
@@ -68,7 +68,8 @@ def formulario() -> rx.Component:
             ),
             rx.text(
                 "Data e horário são opcionais; informados, cada espaço diz se o "
-                "pedido está dentro das regras do tipo.",
+                "pedido está dentro das regras do tipo e se está livre, e os "
+                "livres podem ser reservados.",
                 size="1",
             ),
             rx.button("Buscar", type="submit"),
@@ -114,12 +115,33 @@ def linha_resultado(espaco: rx.Var[dict[str, str]]) -> rx.Component:
         rx.table.cell(
             rx.cond(
                 espaco["horario"] != "",
-                rx.text(
-                    espaco["horario"],
-                    size="2",
-                    color_scheme=rx.cond(espaco["dentro"] == "sim", "green", "red"),
+                rx.vstack(
+                    rx.text(
+                        espaco["horario"],
+                        size="2",
+                        color_scheme=rx.cond(
+                            espaco["dentro"] == "sim", "green", "red"
+                        ),
+                    ),
+                    rx.badge(
+                        espaco["ocupacao"],
+                        color_scheme=rx.cond(
+                            espaco["ocupacao"] == "Livre", "green", "gray"
+                        ),
+                    ),
+                    spacing="1",
                 ),
                 rx.text("-", size="2"),
+            )
+        ),
+        rx.table.cell(
+            rx.cond(
+                espaco["pode_reservar"] == "sim",
+                rx.button(
+                    "Reservar",
+                    size="1",
+                    on_click=BuscaState.abrir_reservar(espaco),
+                ),
             )
         ),
     )
@@ -141,6 +163,7 @@ def resultados() -> rx.Component:
                             "Capacidade",
                             "Recursos",
                             "Horário pedido",
+                            "",
                         )
                     ]
                 )
@@ -155,17 +178,42 @@ def resultados() -> rx.Component:
     )
 
 
+def dialogo_reservar() -> rx.Component:
+    espaco = BuscaState.reservar
+    return dialogo(
+        BuscaState.reservar_aberta,
+        BuscaState.mudar_reservar,
+        "Reservar " + espaco["codigo"],
+        BuscaState.confirmar_reservar,
+        rx.text(espaco["nome"] + " — " + espaco["unidade"], size="2"),
+        rx.text(BuscaState.pedido_texto, size="2", weight="medium"),
+        rx.cond(
+            espaco["exige_aprovacao"] == "sim",
+            rx.callout(
+                "Este tipo de espaço exige aprovação para o seu papel: a reserva "
+                "fica aguardando aprovação.",
+                color_scheme="orange",
+                width="100%",
+            ),
+        ),
+        mensagem(BuscaState.erro_dialogo, "red"),
+        botao="Reservar",
+        limpar_ao_enviar=False,
+    )
+
+
 def buscar() -> rx.Component:
     return layout_autenticado(
         rx.heading("Buscar espaços", size="5"),
         rx.callout(
-            "A busca não verifica se o horário já está ocupado: a ocupação é "
-            "verificada na reserva.",
+            "A disponibilidade é conferida de novo no momento da reserva.",
             color_scheme="blue",
             width="100%",
         ),
         mensagem(BuscaState.mensagem_erro, "red"),
+        mensagem(BuscaState.mensagem_sucesso, "green"),
         formulario(),
         regras_dos_tipos(),
         resultados(),
+        dialogo_reservar(),
     )

@@ -1,7 +1,8 @@
 """Estado da página de busca de espaços (todos os papéis).
 
-Só usabilidade: tipos permitidos ao papel, regras do tipo e formato de data e
-hora são decididos no Xano. A busca não verifica ocupação (design D7).
+Só usabilidade: tipos permitidos ao papel, regras do tipo, formato de data e
+hora e ocupação são decididos no Xano. "Livre" é informativo: a reserva
+confere tudo de novo no momento da criação (C6, design D13 e D14).
 """
 
 import reflex as rx
@@ -51,6 +52,10 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         horario = "Fora das regras: " + ", ".join(
             MOTIVOS_HORARIO.get(m, m) for m in espaco.get("motivos") or []
         )
+    if "ocupado" not in espaco:
+        ocupacao = ""
+    else:
+        ocupacao = "Ocupado" if espaco["ocupado"] else "Livre"
     return {
         "id": str(espaco["id"]),
         "nome": espaco["nome"],
@@ -65,6 +70,12 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         "exige_aprovacao": "sim" if espaco.get("exige_aprovacao") else "nao",
         "horario": horario,
         "dentro": "sim" if espaco.get("dentro_das_regras") else "nao",
+        "ocupacao": ocupacao,
+        "pode_reservar": (
+            "sim"
+            if espaco.get("dentro_das_regras") and espaco.get("ocupado") is False
+            else "nao"
+        ),
     }
 
 
@@ -82,6 +93,15 @@ class BuscaState(rx.State):
     resultados: list[dict[str, str]] = []
     buscou: bool = False
     mensagem_erro: str = ""
+    mensagem_sucesso: str = ""
+    # Último pedido de horário buscado: é o que "Reservar" envia
+    pedido: dict[str, str] = {}
+    _ultimos_filtros: dict = {}
+
+    reservar_aberta: bool = False
+    reservar: dict[str, str] = {}
+    # Recusa da reserva mostrada dentro da confirmação (spec busca-espacos)
+    erro_dialogo: str = ""
 
     @rx.var
     def opcoes_unidade(self) -> list[dict[str, str]]:
@@ -90,6 +110,17 @@ class BuscaState(rx.State):
     @rx.var
     def opcoes_tipo(self) -> list[dict[str, str]]:
         return [{"id": TODOS, "nome": "Todos os tipos"}, *self.tipos]
+
+    @rx.var
+    def pedido_texto(self) -> str:
+        """Ex.: 11/11/2026, das 10:00 às 11:00."""
+        if not self.pedido:
+            return ""
+        ano, mes, dia = self.pedido["data"].split("-")
+        return (
+            f"{dia}/{mes}/{ano}, das {self.pedido['hora_inicio']} "
+            f"às {self.pedido['hora_fim']}"
+        )
 
     @rx.event
     async def carregar(self):
@@ -108,16 +139,31 @@ class BuscaState(rx.State):
     @rx.event
     def abrir(self):
         self.mensagem_erro = ""
+        self.mensagem_sucesso = ""
         self.resultados = []
         self.buscou = False
+        self.pedido = {}
         return BuscaState.carregar
+
+    async def _consultar(self, filtros: dict):
+        self.resultados = []
+        self.buscou = False
+        token = await token_da_sessao(self)
+        try:
+            espacos = await api.buscar_espacos(token, filtros)
+        except api.ErroApi as erro:
+            return await tratar_erro_api(self, erro)
+        self.resultados = [_espaco_para_tela(e) for e in espacos]
+        self.buscou = True
 
     @rx.event
     async def buscar(self, dados: dict):
         """Só envia a busca no clique (plano Free do Xano: poucas requisições)."""
         self.mensagem_erro = ""
+        self.mensagem_sucesso = ""
         self.resultados = []
         self.buscou = False
+        self.pedido = {}
         horario = {
             campo: str(dados.get(campo, "") or "").strip()
             for campo in ("data", "hora_inicio", "hora_fim")
@@ -136,12 +182,47 @@ class BuscaState(rx.State):
             ],
             **horario,
         }
+        self._ultimos_filtros = {
+            c: v for c, v in filtros.items() if v not in (None, "")
+        }
+        if all(horario.values()):
+            self.pedido = horario
+        return await self._consultar(self._ultimos_filtros)
+
+    # ---------- reservar ----------
+
+    @rx.event
+    def abrir_reservar(self, espaco: dict):
+        self.mensagem_erro = ""
+        self.mensagem_sucesso = ""
+        self.erro_dialogo = ""
+        self.reservar = espaco
+        self.reservar_aberta = True
+
+    @rx.event
+    def mudar_reservar(self, aberta: bool):
+        self.reservar_aberta = aberta
+
+    @rx.event
+    async def confirmar_reservar(self, _dados: dict):
+        self.erro_dialogo = ""
         token = await token_da_sessao(self)
         try:
-            espacos = await api.buscar_espacos(
-                token, {c: v for c, v in filtros.items() if v not in (None, "")}
+            resposta = await api.criar_reserva(
+                token,
+                int(self.reservar["id"]),
+                self.pedido["data"],
+                self.pedido["hora_inicio"],
+                self.pedido["hora_fim"],
             )
+        except api.ErroValidacao as erro:
+            # Ex.: horário ocupado depois da busca; a confirmação não fecha
+            self.erro_dialogo = erro.mensagem
+            return
         except api.ErroApi as erro:
+            self.reservar_aberta = False
             return await tratar_erro_api(self, erro)
-        self.resultados = [_espaco_para_tela(e) for e in espacos]
-        self.buscou = True
+        self.reservar_aberta = False
+        self.mensagem_sucesso = resposta["mensagem"]
+        # Atualiza livre e ocupado com o mesmo pedido
+        return await self._consultar(self._ultimos_filtros)

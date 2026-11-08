@@ -49,6 +49,7 @@ _AUTH = "XANO_API_AUTH_URL"
 _UNIDADES = "XANO_API_UNIDADES_URL"
 _CONTAS = "XANO_API_CONTAS_URL"
 _ESPACOS = "XANO_API_ESPACOS_URL"
+_RESERVAS = "XANO_API_RESERVAS_URL"
 
 
 def _url(variavel: str, rota: str) -> str:
@@ -252,10 +253,18 @@ async def redefinir_senha(
 
 
 async def inativar_conta(
-    token: str, usuario_id: int, motivo: str
+    token: str, usuario_id: int, motivo_codigo: str, motivo_descricao: str = ""
 ) -> dict[str, Any]:
-    """Inativa uma conta ativa; o motivo fica só na auditoria."""
-    dados = {"usuario_id": usuario_id, "motivo": motivo}
+    """Inativa uma conta ativa e cancela as reservas que ainda não começaram.
+
+    O motivo vem da lista de inativação e fica só na auditoria; a descrição
+    só vale para o motivo "OUTRO".
+    """
+    dados = {
+        "usuario_id": usuario_id,
+        "motivo_codigo": motivo_codigo,
+        "motivo_descricao": motivo_descricao,
+    }
     return await _requisitar("POST", _url(_CONTAS, "inativar"), token, dados)
 
 
@@ -366,12 +375,19 @@ async def desativar_unidade(
     unidade_id: int,
     destinos_coordenadores: list[dict[str, int]],
     destinos_professores: list[dict[str, int]],
+    motivo_codigo: str,
+    motivo_descricao: str = "",
 ) -> dict[str, Any]:
-    """Desativa a unidade com os destinos de coordenadores e professores."""
+    """Desativa a unidade com os destinos de coordenadores e professores.
+
+    Cancela as reservas dos espaços da unidade que ainda não terminaram.
+    """
     dados = {
         "unidade_id": unidade_id,
         "destinos_coordenadores": destinos_coordenadores,
         "destinos_professores": destinos_professores,
+        "motivo_codigo": motivo_codigo,
+        "motivo_descricao": motivo_descricao,
     }
     return await _requisitar(
         "POST", _url(_UNIDADES, "desativar"), token, dados
@@ -452,14 +468,22 @@ async def editar_tipo_espaco(
 
 
 async def desativar_tipo_espaco(
-    token: str, tipo_espaco_id: int
+    token: str,
+    tipo_espaco_id: int,
+    motivo_codigo: str,
+    motivo_descricao: str = "",
 ) -> dict[str, Any]:
-    """Desativa o tipo; os espaços dele deixam de ser reserváveis."""
+    """Desativa o tipo; os espaços dele deixam de ser reserváveis.
+
+    Cancela as reservas dos espaços do tipo que ainda não terminaram.
+    """
+    dados = {
+        "tipo_espaco_id": tipo_espaco_id,
+        "motivo_codigo": motivo_codigo,
+        "motivo_descricao": motivo_descricao,
+    }
     return await _requisitar(
-        "POST",
-        _url(_ESPACOS, "desativar_tipo"),
-        token,
-        {"tipo_espaco_id": tipo_espaco_id},
+        "POST", _url(_ESPACOS, "desativar_tipo"), token, dados
     )
 
 
@@ -550,13 +574,17 @@ async def definir_recursos_espaco(
     )
 
 
-async def desativar_espaco(token: str, espaco_id: int) -> dict[str, Any]:
-    """Desativa um espaço ativo."""
+async def desativar_espaco(
+    token: str, espaco_id: int, motivo_codigo: str, motivo_descricao: str = ""
+) -> dict[str, Any]:
+    """Desativa um espaço ativo e cancela as reservas que ainda não terminaram."""
+    dados = {
+        "espaco_id": espaco_id,
+        "motivo_codigo": motivo_codigo,
+        "motivo_descricao": motivo_descricao,
+    }
     return await _requisitar(
-        "POST",
-        _url(_ESPACOS, "desativar_espaco"),
-        token,
-        {"espaco_id": espaco_id},
+        "POST", _url(_ESPACOS, "desativar_espaco"), token, dados
     )
 
 
@@ -608,8 +636,57 @@ async def buscar_espacos(
     """Espaços reserváveis pelo usuário, com os filtros informados.
 
     Com data (AAAA-MM-DD) e horas (HH:MM), cada espaço diz se o pedido
-    está dentro das regras do tipo; a ocupação não é verificada.
+    está dentro das regras do tipo e se está ocupado, sem dizer por quem.
     """
     return await _requisitar(
         "POST", _url(_ESPACOS, "buscar_espacos"), token, filtros
+    )
+
+
+# ---------- Reservas ----------
+
+
+async def criar_reserva(
+    token: str, espaco_id: int, data: str, hora_inicio: str, hora_fim: str
+) -> dict[str, Any]:
+    """Reserva o espaço para o próprio usuário (data AAAA-MM-DD, horas HH:MM).
+
+    Devolve a mensagem e a situação: CONFIRMADA ou PENDENTE.
+    """
+    dados = {
+        "espaco_id": espaco_id,
+        "data": data,
+        "hora_inicio": hora_inicio,
+        "hora_fim": hora_fim,
+    }
+    return await _requisitar(
+        "POST", _url(_RESERVAS, "criar_reserva"), token, dados
+    )
+
+
+async def cancelar_reserva(token: str, reserva_id: int) -> dict[str, Any]:
+    """Cancela uma reserva própria dentro do prazo de cancelamento."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "cancelar_reserva"),
+        token,
+        {"reserva_id": reserva_id},
+    )
+
+
+async def minhas_reservas(token: str) -> dict[str, Any]:
+    """Reservas do usuário, com data e horas em São Paulo e pode_cancelar."""
+    return await _requisitar("GET", _url(_RESERVAS, "minhas_reservas"), token)
+
+
+async def impacto_reservas(token: str, alvo: str, alvo_id: int) -> dict[str, Any]:
+    """Quantas reservas uma ação cancelaria e até quando há reserva em uso.
+
+    `alvo`: espaco_id, tipo_espaco_id, unidade_id ou usuario_id.
+    """
+    return await _requisitar(
+        "GET",
+        _url(_RESERVAS, "impacto_reservas"),
+        token,
+        params={alvo: alvo_id},
     )
