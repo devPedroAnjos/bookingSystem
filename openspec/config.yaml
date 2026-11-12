@@ -14,8 +14,9 @@ context: |
     Regras de negócio: docs/project-overview.md, seção 7.
 
   Tech stack:
-    Backend: Xano com XanoScript (banco, API REST, autenticação JWT, tarefas
-    agendadas). Frontend: Reflex (Python), ambiente venv + pip
+    Backend: Xano com XanoScript (banco, API REST, autenticação JWT,
+    vencimentos processados nas operações, sem tarefas agendadas no plano
+    gratuito). Frontend: Reflex (Python), ambiente venv + pip
     (requirements.txt). Especificação: OpenSpec. Agente: Claude Code com
     Xano Developer MCP e Agent Skills do Reflex. Sincronização: Xano CLI.
 
@@ -28,8 +29,9 @@ context: |
 
   Invariants:
     - Nunca duas ocupações ativas sobrepostas no mesmo espaço (reservas
-      PENDENTE ou CONFIRMADA e entradas de fila NOTIFICADA, que retêm a
-      vaga); checagem e gravação atômicas no backend.
+      PENDENTE que ainda não começaram, reservas CONFIRMADA e entradas de
+      fila NOTIFICADA, que retêm a vaga); checagem e gravação atômicas no
+      backend.
     - Prioridade por papel; empate decidido pela ordem de criação no backend.
     - Reservas só nos dias de funcionamento, dentro do horário do tipo
       (padrão 08h00-22h40) e em múltiplos da granularidade (padrão 10 min),
@@ -60,7 +62,7 @@ rules:
     - Requisitos verificáveis com cenários Dado/Quando/Então, incluindo cenários de erro e de permissão negada.
     - Cobrir os casos de borda de horário e prioridade que a funcionalidade tocar.
   design:
-    - Separar o que fica no Xano (dados, endpoints, tarefas agendadas) do que fica no Reflex (páginas, State).
+    - Separar o que fica no Xano (dados, endpoints, processamento de vencimentos) do que fica no Reflex (páginas, State).
     - Indicar as tabelas e os campos do DER usados ou criados, e justificar qualquer divergência.
   tasks:
     - Tarefas pequenas e verificáveis, separadas por camada (Xano, Reflex), com a verificação de cada uma.
