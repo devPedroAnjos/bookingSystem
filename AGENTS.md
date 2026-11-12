@@ -47,7 +47,7 @@ O `change-guardian` (`.claude/agents/change-guardian.md`) é um agente **somente
 
 | Camada | Tecnologia | Regra |
 |---|---|---|
-| Backend | **Xano + XanoScript** | Única fonte de verdade de dados, regras de negócio, autorização, concorrência, tarefas agendadas e auditoria. |
+| Backend | **Xano + XanoScript** | Única fonte de verdade de dados, regras de negócio, autorização, concorrência, processamento de vencimentos e auditoria. O plano gratuito não tem tarefas agendadas: os vencimentos são processados nas operações, e as consultas usam a situação efetiva (`docs/project-overview.md`, seção 8). |
 | Frontend | **Reflex (Python)** | Exclusivo. Consome a API do Xano. Não acessa banco de dados e não reimplementa regras de negócio. |
 
 - Não introduza outra tecnologia de backend, banco de dados ou frontend (FastAPI, Django, SQLite, React, Vue etc.) sem uma change que altere explicitamente a decisão arquitetural.
@@ -79,7 +79,7 @@ O `change-guardian` (`.claude/agents/change-guardian.md`) é um agente **somente
 
 Detalhes em `docs/project-overview.md` (seção 7) e `docs/domain-model.md` (seção 4).
 
-- Nunca permita duas ocupações **ativas** sobrepostas no mesmo espaço: reservas pendentes ou confirmadas e vagas retidas pela fila de espera (entrada `NOTIFICADA`).
+- Nunca permita duas ocupações **ativas** sobrepostas no mesmo espaço: reservas pendentes que ainda não começaram, reservas confirmadas e vagas retidas pela fila de espera (entrada `NOTIFICADA`).
 - A prioridade é **Coordenador/Admin > Professor > Aluno**. Em empate, vale a ordem de criação **registrada pelo backend**.
 - Todos os horários são gravados com fuso. As regras são avaliadas em **America/Sao_Paulo**.
 - Prazos, durações e limites são **parâmetros** (ConfiguraçãoGeral / TipoEspaço). Não use valores fixos no código.
