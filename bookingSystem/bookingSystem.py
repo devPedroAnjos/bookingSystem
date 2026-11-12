@@ -15,6 +15,7 @@ from bookingSystem.pages.login import login
 from bookingSystem.pages.minhas_reservas import minhas_reservas
 from bookingSystem.pages.parametros import parametros
 from bookingSystem.pages.recursos import recursos
+from bookingSystem.pages.reservas_unidade import reservas_unidade
 from bookingSystem.pages.tipos_espaco import tipos_espaco
 from bookingSystem.pages.trocar_senha import trocar_senha
 from bookingSystem.pages.unidades import unidades
@@ -32,6 +33,7 @@ from bookingSystem.state.espacos_state import EspacosState
 from bookingSystem.state.parametros_state import ParametrosState
 from bookingSystem.state.recursos_state import RecursosState
 from bookingSystem.state.reservas_state import ReservasState
+from bookingSystem.state.reservas_unidade_state import ReservasUnidadeState
 from bookingSystem.state.senha_state import SenhaState
 from bookingSystem.state.tipos_espaco_state import TiposEspacoState
 from bookingSystem.state.unidades_state import UnidadesState
@@ -72,6 +74,12 @@ app.add_page(
     route="/aprovacoes",
     title="Aprovações | BookingSystem",
     on_load=[AuthState.exigir_gestor, ContasState.abrir_aprovacoes],
+)
+app.add_page(
+    reservas_unidade,
+    route="/reservas-unidade",
+    title="Reservas da unidade | BookingSystem",
+    on_load=[AuthState.exigir_gestor, ReservasUnidadeState.abrir],
 )
 app.add_page(
     usuarios,

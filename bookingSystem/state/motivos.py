@@ -85,6 +85,13 @@ def texto_cancelamento(reserva: dict) -> str:
     return texto
 
 
+def texto_motivo(reserva: dict) -> str:
+    """Motivo mostrado ao lado da situação: o da recusa ou o do cancelamento (C7)."""
+    if reserva.get("status") == "RECUSADA":
+        return reserva.get("motivo_recusa") or ""
+    return texto_cancelamento(reserva)
+
+
 def texto_impacto(impacto: dict) -> str:
     """Aviso do diálogo a partir da rota impacto_reservas (design D8)."""
     if impacto.get("em_andamento_ate"):
