@@ -690,3 +690,37 @@ async def impacto_reservas(token: str, alvo: str, alvo_id: int) -> dict[str, Any
         token,
         params={alvo: alvo_id},
     )
+
+
+async def aprovar_reserva(token: str, reserva_id: int) -> dict[str, Any]:
+    """Aprova uma reserva pendente (coordenador da unidade ou admin)."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "aprovar_reserva"),
+        token,
+        {"reserva_id": reserva_id},
+    )
+
+
+async def recusar_reserva(
+    token: str, reserva_id: int, motivo: str
+) -> dict[str, Any]:
+    """Recusa uma reserva pendente; o motivo é mostrado ao dono."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "recusar_reserva"),
+        token,
+        {"reserva_id": reserva_id, "motivo": motivo},
+    )
+
+
+async def reservas_unidade(token: str, filtros: dict[str, Any]) -> dict[str, Any]:
+    """Reservas dos espaços no escopo do gestor, com `limitada` acima de 200.
+
+    Filtros opcionais: unidade_id, espaco_id, situacao (PENDENTE por padrão),
+    data_inicial e data_final (AAAA-MM-DD). Filtros vazios não são enviados.
+    """
+    params = {chave: valor for chave, valor in filtros.items() if valor}
+    return await _requisitar(
+        "GET", _url(_RESERVAS, "reservas_unidade"), token, params=params
+    )

@@ -59,6 +59,11 @@ query buscar_espacos verb=POST {
       value = []
     }
   
+    // Lido antes da ocupação: a pendente cujo início já chegou não ocupa (C7, design D2)
+    var $agora {
+      value = now
+    }
+
     // Formato e conversão compartilhados com a criação de reserva (C6, design D3)
     conditional {
       if ($com_horario) {
@@ -83,9 +88,10 @@ query buscar_espacos verb=POST {
           value = $configuracao_horario
         }
 
-        // Uma consulta para todos os espaços: reservas ativas sobrepostas ao intervalo (D7, D13)
+        // Uma consulta para todos os espaços: reservas ativas sobrepostas ao intervalo (D7, D13).
+        // Ocupam a confirmada e a pendente que ainda não começou (C7, D2); a busca não grava nada.
         db.query reserva {
-          where = $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           return = {type: "list"}
         } as $sobrepostas
 
@@ -98,11 +104,7 @@ query buscar_espacos verb=POST {
     var $recursos_pedidos {
       value = ($input.recursos_ids|first_notnull:[])|map:($$|to_int)
     }
-  
-    var $agora {
-      value = now
-    }
-  
+
     db.query unidade {
       sort = {nome: "asc"}
       return = {type: "list"}

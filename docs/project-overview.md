@@ -122,7 +122,7 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 ### 7.3 Concorrência e prioridade
 
 - **Nunca** podem existir duas reservas **ativas** (pendente ou confirmada) com horários sobrepostos no mesmo espaço. Sobreposição parcial também é conflito.
-- Uma reserva **pendente já ocupa o horário**, assim como uma vaga **retida pela fila de espera** (ver seção 7.4).
+- Uma reserva **pendente já ocupa o horário** até o início dela, assim como uma vaga **retida pela fila de espera** (ver seção 7.4). A pendente cujo início chegou sem decisão expirou e não ocupa mais (seção 7.6).
 - A prioridade é definida pelo papel: **Coordenador/Admin (3) > Professor (2) > Aluno (1)**.
 - Entre papéis de **mesmo nível**, vence **quem reservou primeiro** (data/hora de criação registrada pelo backend).
 - **Deslocamento por prioridade:** um solicitante de nível maior pode ocupar um horário já reservado por usuários de nível menor quando:
@@ -160,8 +160,9 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 
 - Reservas que exigem aprovação ficam **pendentes** e ocupam o horário.
 - Quem aprova é o **coordenador da unidade do espaço**. O administrador também pode decidir.
+- **Ninguém decide a própria reserva.** Isso só acontece quando o dono mudou de papel depois de criá-la, e a reserva fica para outro coordenador da unidade ou para um administrador.
 - A **recusa exige motivo**, que é enviado ao usuário.
-- Se não houver decisão até o horário de início, a reserva **expira** automaticamente e o usuário é notificado.
+- Se não houver decisão até o horário de início, a reserva **expira** automaticamente e o usuário é notificado. A partir do início ela deixa de ocupar o horário e aparece como expirada em todas as consultas. A gravação da expiração, e o aviso a partir da C13, acontecem na próxima operação que grava reservas, porque o plano gratuito do Xano não tem tarefas agendadas (seção 8).
 
 ### 7.7 Bloqueios
 
@@ -216,14 +217,14 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 │  • validações de UX      │                              │  • autenticação (JWT)        │
 └──────────────────────────┘                              │  • regras de negócio         │
                                                           │  • concorrência / prioridade │
-                                                          │  • tarefas agendadas         │
+                                                          │  • vencimentos nas operações │
                                                           │  • log de auditoria          │
                                                           └──────────────────────────────┘
 ```
 
 | Camada | Tecnologia | Responsabilidade |
 |---|---|---|
-| Backend | **Xano** com **XanoScript** | Fonte de verdade de dados e regras. Persistência, API REST, autenticação, autorização, validação das regras de negócio, controle de concorrência, tarefas agendadas (expiração, faltas, penalidades, fila) e auditoria. |
+| Backend | **Xano** com **XanoScript** | Fonte de verdade de dados e regras. Persistência, API REST, autenticação, autorização, validação das regras de negócio, controle de concorrência, processamento de vencimentos (expiração, faltas, penalidades, fila) e auditoria. |
 | Frontend | **Reflex** (Python) | Interface do usuário. O State do Reflex consome a API do Xano. O token de autenticação fica no State do servidor Reflex. Não acessa banco de dados diretamente e **não reimplementa regras de negócio**. Faz apenas validações de usabilidade. |
 | Linguagem | **Python** | Usado exclusivamente pelo Reflex. Não existe um backend Python separado. |
 | Especificação | **OpenSpec** (schema `spec-driven`) | Planejamento e rastreabilidade das mudanças. |
@@ -233,6 +234,13 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 | Ambiente Python | **venv + pip** (`requirements.txt`) | Sem uso de `uv`. |
 
 Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React, Vue, Angular ou outro framework.
+
+**Vencimentos sem tarefas agendadas.** O plano gratuito do Xano não executa tarefas agendadas (Background Tasks). Enquanto for assim, os vencimentos seguem três regras, definidas na C7 (`design.md`, D4):
+- **Uma porta só.** As operações que gravam reservas processam primeiro, dentro da trava, tudo o que já venceu, por exemplo a pendente cujo início chegou sem decisão.
+- **Uma verdade só para leitura.** Todas as consultas usam a **situação efetiva**: o que já venceu aparece como vencido mesmo antes de ser gravado, e por isso o `status` gravado no banco pode estar atrasado.
+- **O instante real.** Cada vencimento registra quando de fato venceu, não quando foi constatado.
+
+Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem outra mudança.
 
 ## 9. Princípios de desenvolvimento
 
@@ -250,7 +258,7 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar, bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -265,14 +273,22 @@ Ordem das changes (ajustada durante os Explores):
 4. Tipos de espaço, espaços e recursos: cadastro de tipos (só nome, descrição e situação), catálogo de recursos, espaços com código único por unidade, disponibilidade derivada e mudança de unidade pelo admin (C4, `tipos-espacos-recursos`).
 5. Regras por tipo de espaço e busca de espaços: regras de uso e RegraPapel por tipo, editadas pelo admin; carga única das regras dos quatro tipos iniciais; tipo sem regras completas não é reservável; granularidade e dias de funcionamento como parâmetros; busca para todos os papéis, com espaços de todas as unidades, que diz se um horário está dentro das regras do tipo, sem verificar ocupação (C5, `regras-tipo-busca`).
 6. Reserva avulsa com verificação de conflito e regras: criação atômica com regras do tipo, regra do papel, limite de reservas ativas e conflito; cancelamento pelo usuário no prazo (parâmetro); "Minhas reservas"; busca com livre ou ocupado; inativar conta e desativar, mover ou trocar o tipo de espaços cancelam reservas (recusados com reserva confirmada em andamento), com motivo escolhido numa lista nas desativações e na inativação (C6, `reserva-avulsa`).
-7. Aprovação de reservas pendentes e expiração, e a listagem de reservas da unidade. Pendência da C4: mover um espaço de unidade muda quem aprova as reservas pendentes dele (a C6 já cancela as pendentes do espaço movido).
-8. Prioridade, deslocamento e fila de espera. Pendência da C6: vaga retida pela fila e deslocamento por prioridade no ponto de extensão do conflito da criação; `nivel_prioridade` e `criado_em` já são gravados.
-9. Cancelamento tardio, check-in, faltas e penalidades (inclui contestação). Pendências da C6: penalidade ativa no ponto de extensão da criação; cancelamento tardio com o mesmo prazo; fechamento de reservas passadas; rever o que conta como reserva em andamento se o check-in mudar isso.
-10. Bloqueios. Pendência da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
+7. Aprovação de reservas: aprovar e recusar pendentes (coordenador da unidade do espaço ou admin; ninguém decide a própria reserva; recusa com motivo); expiração da pendente sem decisão até o início, com vencimentos processados nas operações e situação efetiva nas consultas, porque o plano gratuito do Xano não tem tarefas agendadas (seção 8); página "Reservas da unidade" (C7, `aprovacao-reservas`).
+8. Prioridade, deslocamento e fila de espera.
+   - Pendências da C6: vaga retida pela fila e deslocamento por prioridade no ponto de extensão do conflito da criação; `nivel_prioridade` e `criado_em` já são gravados.
+   - Pendências da C7: a retenção vencida entra na situação efetiva e no processamento de vencimentos. Decidir no explore como tratar o atraso do aviso ao próximo da fila (contar o prazo dele a partir de quando é de fato avisado, processar os vencimentos ao abrir "Minhas reservas" ou a fila, ou aceitar o atraso).
+9. Cancelamento tardio, check-in, faltas e penalidades (inclui contestação).
+   - Pendências da C6: penalidade ativa no ponto de extensão da criação; cancelamento tardio com o mesmo prazo; fechamento de reservas passadas; rever o que conta como reserva em andamento se o check-in mudar isso.
+   - Pendências da C7: não comparecimento, fechamento e falta entram no processamento de vencimentos com o instante real; penalidade ativa derivada por datas; janela de check-in de uma reserva aprovada a minutos do início.
+10. Bloqueios.
+    - Pendências da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
+    - Pendência da C7: procurar as reservas ativas sobrepostas pela situação efetiva.
 11. Reserva recorrente de sala de aula.
 12. Avaliações.
-13. Notificações in-app. Pendência da C6: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`).
-14. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível.
+13. Notificações in-app.
+    - Pendência da C6: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`).
+    - Pendências da C7: notificar aprovação, recusa e expiração; a expiração é notificada só quando gravada, então avaliar processar os vencimentos ao abrir a central de notificações.
+14. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível. Pendência da C7: painel e relatórios usam a situação efetiva.
 
 ## 12. Fonte de verdade e documentação
 

@@ -1,7 +1,9 @@
 """Estado da página "Minhas reservas" (todos os papéis).
 
 Só usabilidade: a lista, a data e as horas em São Paulo e `pode_cancelar` vêm
-do Xano (design D9), que revalida o prazo ao cancelar (D6).
+do Xano (design D9), que revalida o prazo ao cancelar (D6). Desde a C7, o
+`status` é a situação efetiva: a pendente vencida chega EXPIRADA e vai para o
+histórico; a recusada traz o motivo da recusa.
 """
 
 import time
@@ -10,7 +12,7 @@ import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
-from bookingSystem.state.motivos import texto_cancelamento
+from bookingSystem.state.motivos import texto_motivo
 
 ATIVAS = ("PENDENTE", "CONFIRMADA")
 
@@ -41,7 +43,7 @@ def _reserva_para_tela(reserva: dict) -> dict[str, str]:
         "horario": f"{reserva['hora_inicio']} às {reserva['hora_fim']}",
         "status": reserva["status"],
         "situacao": SITUACOES.get(reserva["status"], reserva["status"]),
-        "motivo": texto_cancelamento(reserva),
+        "motivo": texto_motivo(reserva),
         "pode_cancelar": "sim" if reserva.get("pode_cancelar") else "nao",
     }
 

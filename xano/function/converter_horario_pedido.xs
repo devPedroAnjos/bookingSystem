@@ -28,7 +28,9 @@ function converter_horario_pedido {
       error = "Informe a data, a hora de início e a hora de fim juntas."
     }
 
-    precondition (("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/"|regex_matches:$data) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_inicio) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_fim)) {
+    // Mês (01 a 12) e dia (01 a 31) na regex: to_timestamp recusa mês 13 com mensagem própria, em
+    // inglês (correção feita na C7, decisions-log 33)
+    precondition (("/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/"|regex_matches:$data) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_inicio) && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$hora_fim)) {
       error_type = "inputerror"
       error = "Informe a data no formato AAAA-MM-DD e as horas no formato HH:MM, com valores existentes."
     }

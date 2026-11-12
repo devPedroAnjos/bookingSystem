@@ -10,6 +10,7 @@ CORES_SITUACAO = {
     "CONFIRMADA": "green",
     "PENDENTE": "orange",
     "CANCELADA": "gray",
+    "RECUSADA": "red",
 }
 
 

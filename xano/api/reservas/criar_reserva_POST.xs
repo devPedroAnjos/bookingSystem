@@ -3,6 +3,9 @@
 // tipo e das regras, espaço reservável, regra do papel, regras de horário, limite de reservas
 // ativas no tipo e conflito. Todas as recusas são 400 com uma mensagem só. Nasce PENDENTE quando
 // o tipo exige aprovação para o papel, senão CONFIRMADA. Nunca reserva em nome de outra pessoa.
+// C7: depois da conversão do horário e antes da transação, aplicar_vencimentos grava as pendentes
+// vencidas (design D3); o limite e o conflito usam o predicado de ocupação da situação efetiva
+// (D2), que ignora a pendente cujo início já chegou mesmo antes de ela ser gravada.
 // Cria uma reserva, dentro da trava de governança
 query criar_reserva verb=POST {
   api_group = "reservas"
@@ -31,7 +34,10 @@ query criar_reserva verb=POST {
     var $fim {
       value = $horario.fim
     }
-  
+
+    // Faxina de vencimentos em transação própria (C7, design D3)
+    function.run aplicar_vencimentos as $vencimentos
+
     // Rótulos dos motivos de validar_horario_reserva (os mesmos da tela de busca). Cadeia de |set
     // em vez de objeto literal: o Xano tira as vírgulas dos literais e eles podem perder chaves
     var $rotulos_horario {
@@ -155,18 +161,19 @@ query criar_reserva verb=POST {
         // 6. (Ponto de extensão C9: recusar quem tem penalidade ativa.)
       
         // 7. Limite de reservas ativas no tipo atual do espaço (D5); fim > agora porque, até a C9,
-        // reservas passadas continuam CONFIRMADA
+        // reservas passadas continuam CONFIRMADA. Ocupação pela situação efetiva (C7, D2): a
+        // pendente cujo início já chegou expirou e não conta.
         db.query espaco {
           where = $db.espaco.tipo_espaco_id == $espaco.tipo_espaco_id
           return = {type: "list"}
         } as $espacos_do_tipo
-      
+
         var $ids_do_tipo {
           value = $espacos_do_tipo|map:$$.id
         }
-      
+
         db.query reserva {
-          where = $db.reserva.usuario_id == $ator.id && $db.reserva.espaco_id in $ids_do_tipo && $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.fim > $agora
+          where = $db.reserva.usuario_id == $ator.id && $db.reserva.espaco_id in $ids_do_tipo && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.fim > $agora
           return = {type: "count"}
         } as $ativas_no_tipo
       
@@ -177,10 +184,11 @@ query criar_reserva verb=POST {
       
         // 8. (Ponto de extensão C10: recusar horário com bloqueio ativo sobreposto.)
       
-        // 9. Conflito (D7): pendente ou confirmada sobreposta no mesmo espaço; encostadas não conflitam.
+        // 9. Conflito (D7): ocupação sobreposta no mesmo espaço; encostadas não conflitam. Ocupam
+        // a confirmada e a pendente que ainda não começou (C7, D2).
         // (Ponto de extensão C8: vaga retida pela fila e deslocamento por prioridade.)
         db.query reserva {
-          where = $db.reserva.espaco_id == $espaco.id && $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           return = {type: "exists"}
         } as $conflito
       
