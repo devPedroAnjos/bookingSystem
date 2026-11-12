@@ -187,16 +187,14 @@ A pendente começa no próximo múltiplo da granularidade, e o script espera o i
 
 - [x] 9.1 Atualizar o `decisions-log.md` com as decisões tomadas no apply e registrar no relatório o que não foi possível testar (instante exato do início e vencimento entre as duas transações, cobertos por revisão de código). Verificação: arquivo atualizado.
 - [x] 9.2 Pedir ao guardian o relatório de revisão final e mostrá-lo ao usuário antes de qualquer commit ou push da change. Verificação: relatório apresentado.
-- [ ] 9.3 Limpeza dos testes:
+- [x] 9.3 Limpeza dos testes:
   - o usuário remove pelo painel as funções `tst_faxina_falha`, `tst_c7_auditoria` e `tst_c7_reservas`, e os arquivos locais são apagados;
   - pull final de comparação sem diferenças;
   - unidades e tipo de teste desativados e contas de teste inativadas, sem exclusão física.
 
   Verificação: `git status -- xano` sem `tst_*` e comparação sem diferenças.
 
-  Situação em 11/11/2026 às 21h08:
-  - feitos: funções temporárias removidas (painel e local), pull final sem diferenças, `.playwright-mcp/` apagada, 7 contas de teste inativas e a unidade "TST C7 B" desativada;
-  - pendentes: a unidade "TST C7" e o tipo "TST Aprovação C7" foram recusados por uma reserva confirmada em andamento até as 22h30. A desativação deles fica para depois desse horário.
+  Concluída em 12/11/2026 às 20h33: funções temporárias removidas (painel e local), pull final sem diferenças, `.playwright-mcp/` apagada, 7 contas de teste inativas e as unidades "TST C7 B" e "TST C7" e o tipo "TST Aprovação C7" desativados, sem exclusão física. "TST C7" e o tipo só puderam ser desativados depois da reserva confirmada que ia até as 22h30 de 11/11.
 
 ## Workflow follow-up
 
