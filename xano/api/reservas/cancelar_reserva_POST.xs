@@ -2,6 +2,8 @@
 // ou inexistente tem a mesma recusa. Aceito só se inicio >= agora + prazo, comparando em ms:
 // exatamente no limite é aceito ("até 2 horas antes", §7.8). O cancelamento tardio é da C9.
 // O prazo é lido direto de configuracao_geral (D12), com a precondição do bootstrap.
+// C7: aplicar_vencimentos antes da transação (design D3); a pendente vencida chega EXPIRADA e
+// recebe "não está ativa". A checagem de prazo cobre a corrida entre as duas transações.
 // Cancela uma reserva própria dentro do prazo, dentro da trava de governança
 query cancelar_reserva verb=POST {
   api_group = "reservas"
@@ -12,6 +14,9 @@ query cancelar_reserva verb=POST {
   }
 
   stack {
+    // Faxina de vencimentos em transação própria (C7, design D3)
+    function.run aplicar_vencimentos as $vencimentos
+
     db.transaction {
       stack {
         function.run travar_governanca as $trava

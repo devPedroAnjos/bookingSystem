@@ -1,6 +1,6 @@
 // Reserva de um espaço por um usuário (C6, design D1). Nunca é excluída; só muda de situação.
-// Subconjunto do DER: serie_id (C11), decisão da aprovação (C7), deslocamento (C8),
-// bloqueio_id (C10) e check-in (C9) entram nas changes que os usarem.
+// Subconjunto do DER: serie_id (C11), deslocamento (C8), bloqueio_id (C10) e check-in (C9)
+// entram nas changes que os usarem. A decisão da aprovação entrou na C7 (design D1).
 table reserva {
   auth = false
 
@@ -73,6 +73,16 @@ table reserva {
   
     // Descrição digitada quando o motivo da desativação é OUTRO
     text? motivo_descricao? filters=trim
+  
+    // Quem aprovou ou recusou a pendente (C7); a expiração não preenche a decisão
+    int? decidido_por_id? {
+      table = "usuario"
+    }
+  
+    timestamp? decidido_em?
+  
+    // Motivo da recusa, de 1 a 500 caracteres, visível ao dono da reserva
+    text? motivo_recusa? filters=trim
   }
 
   index = [
@@ -82,6 +92,7 @@ table reserva {
       field: [{name: "espaco_id"}, {name: "inicio"}]
     }
     {type: "btree", field: [{name: "usuario_id"}]}
+    {type: "btree", field: [{name: "status"}, {name: "inicio"}]}
   ]
 
   guid = "hdF1P-fQdw9P9jMe48QocezL2aY"

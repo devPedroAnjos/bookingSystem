@@ -3,6 +3,9 @@
 // pode_cancelar usa o prazo atual e a mesma comparação em ms de cancelar_reserva (só usabilidade;
 // a rota de cancelar revalida). O motivo da desativação só aparece em ESPACO_INDISPONIVEL; na
 // inativação de conta não há detalhe (a pessoa inativada não vê o motivo).
+// C7: o status devolvido é a situação efetiva (design D2): a pendente vencida aparece EXPIRADA
+// mesmo antes de ser gravada. Devolve o motivo da recusa, mas não quem decidiu, assim como não
+// devolve quem cancelou (D7).
 // Lista as reservas do usuário autenticado
 query minhas_reservas verb=GET {
   api_group = "reservas"
@@ -75,12 +78,20 @@ query minhas_reservas verb=GET {
           input = {inicio: $reserva.inicio, fim: $reserva.fim}
         } as $formatada
 
+        function.run situacao_efetiva {
+          input = {
+            status: $reserva.status
+            inicio: $reserva.inicio
+            agora : $agora
+          }
+        } as $situacao
+
         var $pode_cancelar {
           value = false
         }
 
         conditional {
-          if ($reserva.status == "PENDENTE" || $reserva.status == "CONFIRMADA") {
+          if ($situacao == "PENDENTE" || $situacao == "CONFIRMADA") {
             conditional {
               if ($reserva.inicio >= $agora + $limite_cancelamento) {
                 var.update $pode_cancelar {
@@ -141,10 +152,11 @@ query minhas_reservas verb=GET {
             |set:"data":$formatada.data
             |set:"hora_inicio":$formatada.hora_inicio
             |set:"hora_fim":$formatada.hora_fim
-            |set:"status":$reserva.status
+            |set:"status":$situacao
             |set:"motivo_cancelamento":$reserva.motivo_cancelamento
             |set:"motivo_detalhe":$motivo_detalhe
             |set:"motivo_descricao":$motivo_descricao
+            |set:"motivo_recusa":$reserva.motivo_recusa
             |set:"pode_cancelar":$pode_cancelar
         }
 
