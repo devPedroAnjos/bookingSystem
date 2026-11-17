@@ -202,6 +202,12 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
 - Não pode sobrepor uma vaga retida pela fila de espera (entrada `NOTIFICADA`), exceto a reserva gerada pela confirmação dessa própria entrada.
 - Não pode sobrepor um bloqueio ativo.
 - Cancelamento com motivo `USUARIO_TARDIO` (depois do prazo de cancelamento, §2.18) ou situação `NAO_COMPARECEU` gera uma **Falta**.
+- **Deslocamento por prioridade:** um pedido que conflita com reservas ativas as desloca quando, ao mesmo tempo:
+  - todas têm `nivel_prioridade` (o da criação delas) estritamente menor que o nível do papel atual do solicitante;
+  - a nova reserva e cada uma das conflitantes começam a mais de `prazo_deslocamento_minutos` de agora (exatamente o prazo não basta), então uma reserva em andamento nunca é deslocada;
+  - a nova reserva nasce `CONFIRMADA`.
+
+  Sem a confirmação explícita do solicitante, nada é gravado e ele só fica sabendo quantas reservas seriam deslocadas, sem saber de quem. Com a confirmação, as conflitantes são canceladas **inteiras** (motivo `PRIORIDADE`, o solicitante como autor do cancelamento, sem falta) e a nova é gravada na mesma operação atômica. Se alguma condição falhar, o conflito é recusado.
 - Cancelamento por `PRIORIDADE` registra **qual reserva deslocou** a anterior (autorrelacionamento).
 - Cancelamento por `BLOQUEIO` registra **qual bloqueio** o causou.
 - Reservas nunca são excluídas fisicamente.
@@ -297,7 +303,7 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 | Faltas para penalidade / janela | 2 faltas / 30 dias |
 | Duração da penalidade | 7 dias |
 | Prazo para confirmar vaga da fila | 120 min (limitado a 120 min antes do início) |
-| Antecedência mínima para deslocar por prioridade | 120 min |
+| Antecedência mínima para deslocar por prioridade (vale para a nova reserva e para cada deslocada) | 120 min |
 | Prazo para avaliar | 7 dias |
 | Período máximo de recorrência | 6 meses |
 | Máximo de coordenadores por unidade | 4 |
