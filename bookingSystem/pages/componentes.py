@@ -106,7 +106,7 @@ def dialogo(
     titulo: str | rx.Var[str],
     ao_enviar,
     *campos: rx.Component,
-    botao: str = "Confirmar",
+    botao: str | rx.Var[str] = "Confirmar",
     limpar_ao_enviar: bool = True,
 ) -> rx.Component:
     """Diálogo controlado pelo State, com um formulário e Cancelar/Confirmar.
