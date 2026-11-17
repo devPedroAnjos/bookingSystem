@@ -6,6 +6,10 @@
 // C7: depois da conversão do horário e antes da transação, aplicar_vencimentos grava as pendentes
 // vencidas (design D3); o limite e o conflito usam o predicado de ocupação da situação efetiva
 // (D2), que ignora a pendente cujo início já chegou mesmo antes de ela ser gravada.
+// C8 (design D3 a D6): no conflito, avaliar_deslocamento diz se as conflitantes podem ser
+// deslocadas. Não deslocável: a mesma recusa de horário ocupado. Deslocável sem `deslocar`: 200 sem
+// gravar nada, com requer_confirmacao e a quantidade (reserva_id nulo = nada gravado). Deslocável
+// com `deslocar`: grava a nova e cancela as conflitantes (PRIORIDADE) na mesma transação.
 // Cria uma reserva, dentro da trava de governança
 query criar_reserva verb=POST {
   api_group = "reservas"
@@ -16,6 +20,9 @@ query criar_reserva verb=POST {
     text? data? filters=trim
     text? hora_inicio? filters=trim
     text? hora_fim? filters=trim
+
+    // Confirmação do deslocamento por prioridade (C8); ausente = não confirmado
+    bool? deslocar?
   }
 
   stack {
@@ -63,7 +70,21 @@ query criar_reserva verb=POST {
     var $status_gravado {
       value = null
     }
-  
+
+    // C8: pedido deslocável sem confirmação (nada gravado) e quantas reservas foram ou seriam
+    // deslocadas
+    var $requer_confirmacao {
+      value = false
+    }
+
+    var $quantidade_deslocada {
+      value = 0
+    }
+
+    var $deslocar {
+      value = $input.deslocar|first_notnull:false
+    }
+
     db.transaction {
       stack {
         function.run travar_governanca as $trava
@@ -158,9 +179,9 @@ query criar_reserva verb=POST {
           error = "Horário fora das regras do tipo: " ~ $motivos_horario ~ "."
         }
       
-        // 6. (Ponto de extensão C9: recusar quem tem penalidade ativa.)
-      
-        // 7. Limite de reservas ativas no tipo atual do espaço (D5); fim > agora porque, até a C9,
+        // 6. (Ponto de extensão C10: recusar quem tem penalidade ativa.)
+
+        // 7. Limite de reservas ativas no tipo atual do espaço (D5); fim > agora porque, até a C10,
         // reservas passadas continuam CONFIRMADA. Ocupação pela situação efetiva (C7, D2): a
         // pendente cujo início já chegou expirou e não conta.
         db.query espaco {
@@ -182,112 +203,228 @@ query criar_reserva verb=POST {
           error = "Você já tem o máximo de " ~ $tipo.max_reservas_ativas_usuario ~ " reservas ativas neste tipo de espaço."
         }
       
-        // 8. (Ponto de extensão C10: recusar horário com bloqueio ativo sobreposto.)
-      
+        // 8. (Ponto de extensão C11: recusar horário com bloqueio ativo sobreposto.)
+
         // 9. Conflito (D7): ocupação sobreposta no mesmo espaço; encostadas não conflitam. Ocupam
         // a confirmada e a pendente que ainda não começou (C7, D2).
-        // (Ponto de extensão C8: vaga retida pela fila e deslocamento por prioridade.)
+        // (Ponto de extensão C9: vaga retida pela fila, que não é deslocável.)
         db.query reserva {
           where = $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
-          return = {type: "exists"}
-        } as $conflito
-      
-        precondition (!$conflito) {
-          error_type = "inputerror"
-          error = "Horário ocupado: já existe uma reserva neste espaço nesse intervalo."
-        }
-      
-        // 10. Gravação
+          sort = {inicio: "asc"}
+          return = {type: "list"}
+        } as $conflitantes
+
+        // Situação e nível da nova reserva, que valem também para o deslocamento (C8, D3)
         var $status {
           value = "CONFIRMADA"
         }
-      
+
+        // Booleano calculado à parte: operador dentro do input falha em execução (lição da C5)
+        var $nasce_confirmada {
+          value = true
+        }
+
         conditional {
           if ($regra.exige_aprovacao) {
             var.update $status {
               value = "PENDENTE"
             }
+
+            var.update $nasce_confirmada {
+              value = false
+            }
           }
         }
-      
-        var $nivel {
-          value = 3
+
+        function.run nivel_do_papel {
+          input = {papel: $ator.papel}
+        } as $nivel
+
+        var $deslocavel {
+          value = false
         }
-      
+
+        var $quantidade_conflitantes {
+          value = $conflitantes|count
+        }
+
         conditional {
-          if ($ator.papel == "ALUNO") {
-            var.update $nivel {
-              value = 1
+          if ($quantidade_conflitantes > 0) {
+            // Prazo lido direto da tabela, como o de cancelamento (C6, D12; C8, D1)
+            db.query configuracao_geral {
+              return = {type: "single"}
+            } as $configuracao_reservas
+
+            precondition ($configuracao_reservas != null && !($configuracao_reservas.prazo_deslocamento_minutos|is_null)) {
+              error = "Configuração de reservas incompleta: execute o bootstrap."
+            }
+
+            function.run avaliar_deslocamento {
+              input = {
+                conflitantes     : $conflitantes
+                nivel_solicitante: $nivel
+                inicio_novo      : $inicio
+                nasce_confirmada : $nasce_confirmada
+                prazo_minutos    : $configuracao_reservas.prazo_deslocamento_minutos
+                agora            : $agora
+              }
+            } as $avaliacao
+
+            var.update $deslocavel {
+              value = $avaliacao.deslocavel
             }
           }
-        
-          elseif ($ator.papel == "PROFESSOR") {
-            var.update $nivel {
-              value = 2
+        }
+
+        // Não deslocável: a mesma recusa da C6, sem identificar quem ocupa
+        precondition ($quantidade_conflitantes == 0 || $deslocavel) {
+          error_type = "inputerror"
+          error = "Horário ocupado: já existe uma reserva neste espaço nesse intervalo."
+        }
+
+        conditional {
+          // Deslocável sem confirmação: nada é gravado (D4)
+          if ($quantidade_conflitantes > 0 && !$deslocar) {
+            var.update $requer_confirmacao {
+              value = true
+            }
+
+            var.update $quantidade_deslocada {
+              value = $quantidade_conflitantes
             }
           }
-        }
-      
-        db.add reserva {
-          data = {
-            usuario_id      : $ator.id
-            espaco_id       : $espaco.id
-            inicio          : $inicio
-            fim             : $fim
-            status          : $status
-            nivel_prioridade: $nivel
-            origem          : "DIRETA"
-            criado_em       : now
+
+          else {
+            // 10. Gravação. A nova vem antes do cancelamento das conflitantes, que precisam do id
+            // dela; a sobreposição momentânea fica dentro da transação e da trava (D3).
+            db.add reserva {
+              data = {
+                usuario_id      : $ator.id
+                espaco_id       : $espaco.id
+                inicio          : $inicio
+                fim             : $fim
+                status          : $status
+                nivel_prioridade: $nivel
+                origem          : "DIRETA"
+                criado_em       : now
+              }
+            } as $reserva
+
+            var.update $reserva_id {
+              value = $reserva.id
+            }
+
+            var.update $status_gravado {
+              value = $reserva.status
+            }
+
+            var $ids_deslocadas {
+              value = []
+            }
+
+            // Deslocamento confirmado (D5): CANCELADA, PRIORIDADE, sem falta, um CANCELAR_RESERVA cada
+            conditional {
+              if ($quantidade_conflitantes > 0) {
+                function.run cancelar_reservas {
+                  input = {
+                    modo                    : "prioridade"
+                    reservas                : $conflitantes
+                    deslocada_por_reserva_id: $reserva.id
+                    motivo                  : "PRIORIDADE"
+                    ator_id                 : $ator.id
+                    agora                   : $agora
+                  }
+                } as $cancelamento
+
+                var.update $quantidade_deslocada {
+                  value = $cancelamento.quantidade
+                }
+
+                var.update $ids_deslocadas {
+                  value = $conflitantes|map:$$.id
+                }
+              }
+            }
+
+            // 11. Auditoria (D6): com deslocamento, a lista das deslocadas
+            var $dados_depois {
+              value = {}
+                |set:"espaco_id":$reserva.espaco_id
+                |set:"inicio":$reserva.inicio
+                |set:"fim":$reserva.fim
+                |set:"status":$reserva.status
+            }
+
+            conditional {
+              if ($quantidade_conflitantes > 0) {
+                var.update $dados_depois {
+                  value = $dados_depois|set:"deslocadas":$ids_deslocadas
+                }
+              }
+            }
+
+            function.run registrar_auditoria {
+              input = {
+                ator_id     : $ator.id
+                acao        : "CRIAR_RESERVA"
+                entidade    : "reserva"
+                entidade_id : $reserva.id
+                unidade_id  : $espaco.unidade_id
+                dados_depois: $dados_depois
+              }
+            } as $registro_auditoria
           }
-        } as $reserva
-      
-        var.update $reserva_id {
-          value = $reserva.id
         }
-      
-        var.update $status_gravado {
-          value = $reserva.status
-        }
-      
-        // 11. Auditoria
-        var $dados_depois {
-          value = {}
-            |set:"espaco_id":$reserva.espaco_id
-            |set:"inicio":$reserva.inicio
-            |set:"fim":$reserva.fim
-            |set:"status":$reserva.status
-        }
-      
-        function.run registrar_auditoria {
-          input = {
-            ator_id     : $ator.id
-            acao        : "CRIAR_RESERVA"
-            entidade    : "reserva"
-            entidade_id : $reserva.id
-            unidade_id  : $espaco.unidade_id
-            dados_depois: $dados_depois
-          }
-        } as $registro_auditoria
       }
     }
-  
+
     var $mensagem {
       value = "Reserva confirmada."
     }
-  
+
     conditional {
-      if ($status_gravado == "PENDENTE") {
+      if ($requer_confirmacao && $quantidade_deslocada == 1) {
+        var.update $mensagem {
+          value = "Este horário está ocupado por 1 reserva de prioridade menor. Confirme para deslocá-la."
+        }
+      }
+
+      elseif ($requer_confirmacao) {
+        var.update $mensagem {
+          value = "Este horário está ocupado por " ~ $quantidade_deslocada ~ " reservas de prioridade menor. Confirme para deslocá-las."
+        }
+      }
+
+      elseif ($status_gravado == "PENDENTE") {
         var.update $mensagem {
           value = "Reserva criada e aguardando aprovação."
         }
       }
     }
-  
+
+    // Complemento do sucesso com deslocamento (D4)
+    conditional {
+      if (!$requer_confirmacao && $quantidade_deslocada == 1) {
+        var.update $mensagem {
+          value = $mensagem ~ " 1 reserva de prioridade menor foi deslocada."
+        }
+      }
+
+      elseif (!$requer_confirmacao && $quantidade_deslocada > 1) {
+        var.update $mensagem {
+          value = $mensagem ~ " " ~ $quantidade_deslocada ~ " reservas de prioridade menor foram deslocadas."
+        }
+      }
+    }
+
+    // Com requer_confirmacao, reserva_id e status ficam nulos: nada foi gravado (D4)
     var $resposta {
       value = {}
         |set:"mensagem":$mensagem
         |set:"reserva_id":$reserva_id
         |set:"status":$status_gravado
+        |set:"requer_confirmacao":$requer_confirmacao
+        |set:"deslocadas":$quantidade_deslocada
     }
   }
 

@@ -3,7 +3,10 @@
 // tipo, capacidade mínima, recursos (todos) e data com hora de início e fim (juntos). Com horário,
 // cada espaço diz se o pedido está dentro das regras do tipo e os motivos, e se está ocupado por
 // reserva PENDENTE ou CONFIRMADA sobreposta (C6, D13), sem dizer quem ocupa. É informativo: a
-// reserva confere tudo de novo. Bloqueios entram na C10. POST para receber listas no corpo (D5).
+// reserva confere tudo de novo. Bloqueios entram na C11. POST para receber listas no corpo (D5).
+// C8 (design D7): o espaço ocupado e dentro das regras diz se quem busca poderia deslocar a
+// ocupação (avaliar_deslocamento, a mesma regra da criação) e quantas reservas seriam deslocadas;
+// livre ou fora das regras: deslocavel falso e deslocaria 0. Só a quantidade sai, nunca quem.
 // Busca espaços reserváveis pelo usuário
 query buscar_espacos verb=POST {
   api_group = "espacos"
@@ -58,6 +61,19 @@ query buscar_espacos verb=POST {
     var $ids_ocupados {
       value = []
     }
+
+    // C8: ocupações sobrepostas de todos os espaços, o prazo para deslocar e o nível de quem busca
+    var $sobrepostas_todas {
+      value = []
+    }
+
+    var $prazo_deslocamento {
+      value = 0
+    }
+
+    var $nivel {
+      value = 0
+    }
   
     // Lido antes da ocupação: a pendente cujo início já chegou não ocupa (C7, design D2)
     var $agora {
@@ -97,6 +113,31 @@ query buscar_espacos verb=POST {
 
         var.update $ids_ocupados {
           value = $sobrepostas|map:$$.espaco_id|unique
+        }
+
+        var.update $sobrepostas_todas {
+          value = $sobrepostas
+        }
+
+        // Prazo lido direto da tabela, como na criação (C8, D1 e D7)
+        db.query configuracao_geral {
+          return = {type: "single"}
+        } as $configuracao_reservas
+
+        precondition ($configuracao_reservas != null && !($configuracao_reservas.prazo_deslocamento_minutos|is_null)) {
+          error = "Configuração de reservas incompleta: execute o bootstrap."
+        }
+
+        var.update $prazo_deslocamento {
+          value = $configuracao_reservas.prazo_deslocamento_minutos
+        }
+
+        function.run nivel_do_papel {
+          input = {papel: $ator.papel}
+        } as $nivel_do_ator
+
+        var.update $nivel {
+          value = $nivel_do_ator
         }
       }
     }
@@ -236,11 +277,66 @@ query buscar_espacos verb=POST {
                       value = $ids_ocupados|in:$espaco.id
                     }
 
+                    // C8 (D7): só o ocupado e dentro das regras pode ser deslocável
+                    var $deslocavel {
+                      value = false
+                    }
+
+                    var $deslocaria {
+                      value = 0
+                    }
+
+                    conditional {
+                      if ($ocupado && $validacao.dentro_das_regras) {
+                        var $conflitantes {
+                          value = $sobrepostas_todas|filter:($$.espaco_id == $espaco.id)
+                        }
+
+                        // Booleano calculado à parte: operador dentro do input falha (lição da C5)
+                        var $nasce_confirmada {
+                          value = true
+                        }
+
+                        conditional {
+                          if ($regra.exige_aprovacao) {
+                            var.update $nasce_confirmada {
+                              value = false
+                            }
+                          }
+                        }
+
+                        function.run avaliar_deslocamento {
+                          input = {
+                            conflitantes     : $conflitantes
+                            nivel_solicitante: $nivel
+                            inicio_novo      : $inicio
+                            nasce_confirmada : $nasce_confirmada
+                            prazo_minutos    : $prazo_deslocamento
+                            agora            : $agora
+                          }
+                        } as $avaliacao
+
+                        conditional {
+                          if ($avaliacao.deslocavel) {
+                            var.update $deslocavel {
+                              value = true
+                            }
+
+                            var.update $deslocaria {
+                              value = $avaliacao.quantidade
+                            }
+                          }
+                        }
+                      }
+                    }
+
                     var.update $item {
                       value = $item
                         |set:"dentro_das_regras":$validacao.dentro_das_regras
                         |set:"motivos":$validacao.motivos
                         |set:"ocupado":$ocupado
+                        |set:"deslocavel":$deslocavel
+                        |set:"deslocaria":$deslocaria
                     }
                   }
                 }

@@ -40,14 +40,14 @@ function bootstrap {
   
     var $resultado {
       value = {
-        configuracao_criada : false
-        parametros_ajustados: []
-        unidades_criadas    : []
-        tipos_criados       : []
-        regras_carregadas   : []
-        admin_criado        : false
-        trava_criada        : false
-        contas_com_pedido_1 : 0
+        configuracao_criada : false,
+        parametros_ajustados: [],
+        unidades_criadas    : [],
+        tipos_criados       : [],
+        regras_carregadas   : [],
+        admin_criado        : false,
+        trava_criada        : false,
+        contas_com_pedido_1 : 0,
         principal_marcado   : false
       }
     }
@@ -55,13 +55,14 @@ function bootstrap {
     // Valores padrão dos parâmetros (domain-model.md, §2.18)
     var $parametros_padrao {
       value = {
-        max_coordenadores_unidade : 4
-        max_unidades_coordenador  : 2
-        max_pedidos_cadastro      : 3
-        max_admins                : 3
-        granularidade_minutos     : 10
-        dias_funcionamento        : [1, 2, 3, 4, 5]
-        prazo_cancelamento_minutos: 120
+        max_coordenadores_unidade : 4,
+        max_unidades_coordenador  : 2,
+        max_pedidos_cadastro      : 3,
+        max_admins                : 3,
+        granularidade_minutos     : 10,
+        dias_funcionamento        : [1, 2, 3, 4, 5],
+        prazo_cancelamento_minutos: 120,
+        prazo_deslocamento_minutos: 120
       }
     }
   
@@ -83,6 +84,7 @@ function bootstrap {
                 granularidade_minutos     : $parametros_padrao.granularidade_minutos
                 dias_funcionamento        : $parametros_padrao.dias_funcionamento
                 prazo_cancelamento_minutos: $parametros_padrao.prazo_cancelamento_minutos
+                prazo_deslocamento_minutos: $parametros_padrao.prazo_deslocamento_minutos
               }
             } as $configuracao_criada
           
