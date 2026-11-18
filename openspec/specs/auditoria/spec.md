@@ -209,10 +209,10 @@ Cada ação abaixo, quando concluída com sucesso, DEVE (MUST) gerar um registro
 
 | Ação | Entidade | Ator | Unidade do registro | Dados |
 |---|---|---|---|---|
-| `CRIAR_RESERVA` | `reserva` | o dono da reserva | unidade do espaço | espaço, início, fim e situação inicial nos dados depois |
-| `CANCELAR_RESERVA` | `reserva` | quem cancelou | unidade do espaço no momento do cancelamento (na mudança de unidade, a de origem) | situação anterior nos dados antes; `CANCELADA` e o motivo nos dados depois |
+| `CRIAR_RESERVA` | `reserva` | o dono da reserva | unidade do espaço | espaço, início, fim e situação inicial nos dados depois e, quando houve deslocamento, a lista das reservas deslocadas |
+| `CANCELAR_RESERVA` | `reserva` | quem cancelou | unidade do espaço no momento do cancelamento (na mudança de unidade, a de origem) | situação anterior nos dados antes; `CANCELADA` e o motivo nos dados depois e, no deslocamento, a reserva que deslocou |
 
-O cancelamento pelo próprio usuário gera um `CANCELAR_RESERVA` com o motivo `USUARIO`. Os cancelamentos automáticos geram um `CANCELAR_RESERVA` **por reserva cancelada**, com o motivo `CONTA_INATIVADA` ou `ESPACO_INDISPONIVEL` e, como ator, quem executou a inativação ou a ação sobre o espaço, o tipo ou a unidade, além do registro da própria ação. Tentativas recusadas, a listagem "Minhas reservas", a busca e a consulta de impacto NÃO DEVEM (MUST NOT) gerar registro.
+O cancelamento pelo próprio usuário gera um `CANCELAR_RESERVA` com o motivo `USUARIO`. Os cancelamentos automáticos geram um `CANCELAR_RESERVA` **por reserva cancelada**, com o motivo `CONTA_INATIVADA` ou `ESPACO_INDISPONIVEL` e, como ator, quem executou a inativação ou a ação sobre o espaço, o tipo ou a unidade, além do registro da própria ação. O deslocamento por prioridade gera um `CANCELAR_RESERVA` **por reserva deslocada**, com o motivo `PRIORIDADE`, a reserva nova que a deslocou e, como ator, quem criou a reserva nova, além do `CRIAR_RESERVA` dela. Tentativas recusadas, o pedido de confirmação do deslocamento, a listagem "Minhas reservas", a busca e a consulta de impacto NÃO DEVEM (MUST NOT) gerar registro.
 
 #### Scenario: Reserva criada
 - **WHEN** Ana cria uma reserva de "BIB-01"
@@ -238,6 +238,15 @@ O cancelamento pelo próprio usuário gera um `CANCELAR_RESERVA` com o motivo `U
 
 #### Scenario: Reserva recusada
 - **WHEN** Carlos tenta reservar um horário ocupado
+- **THEN** nenhum registro de auditoria é gerado
+
+#### Scenario: Deslocamento auditado
+- **GIVEN** Ana e Bruno, alunos, têm reservas em "LAB-01" sobrepostas ao pedido de Carlos, professor
+- **WHEN** Carlos reserva e confirma o deslocamento
+- **THEN** existem um `CRIAR_RESERVA` com Carlos como ator e as duas reservas deslocadas nos dados depois, e dois `CANCELAR_RESERVA` com Carlos como ator, o motivo `PRIORIDADE` e a reserva de Carlos nos dados depois
+
+#### Scenario: Pedido de confirmação sem registro
+- **WHEN** Carlos pede um intervalo deslocável sem confirmar o deslocamento
 - **THEN** nenhum registro de auditoria é gerado
 
 ### Requirement: Motivo nas desativações e na inativação de conta
