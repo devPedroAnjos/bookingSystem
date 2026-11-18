@@ -18,6 +18,10 @@ ROTULOS_LIMITES = {
     "prazo_cancelamento_minutos": (
         "Prazo de cancelamento sem penalidade, em minutos antes do início"
     ),
+    "prazo_deslocamento_minutos": (
+        "Prazo para deslocar por prioridade, em minutos antes do início "
+        "(da nova reserva e de cada deslocada)"
+    ),
 }
 
 NOMES_DIAS = {

@@ -1,6 +1,6 @@
 // Reserva de um espaço por um usuário (C6, design D1). Nunca é excluída; só muda de situação.
-// Subconjunto do DER: serie_id (C11), deslocamento (C8), bloqueio_id (C10) e check-in (C9)
-// entram nas changes que os usarem. A decisão da aprovação entrou na C7 (design D1).
+// Subconjunto do DER: serie_id (C12), bloqueio_id (C11) e check-in (C10) entram nas changes que
+// os usarem. A decisão da aprovação entrou na C7 (design D1) e o deslocamento, na C8 (design D1).
 table reserva {
   auth = false
 
@@ -39,12 +39,12 @@ table reserva {
     // Nível do papel na criação: ALUNO 1, PROFESSOR 2, COORDENADOR e ADMIN 3
     int nivel_prioridade
   
-    // Só DIRETA nesta change; FILA (C8) e RECORRENTE (C11) depois
+    // Só DIRETA até agora; FILA (C9) e RECORRENTE (C12) depois
     enum origem {
       values = ["DIRETA", "FILA", "RECORRENTE"]
     }
   
-    // Instante registrado pelo backend: desempate por ordem de criação (C8)
+    // Instante registrado pelo backend: desempate por ordem de criação (fila, C9)
     timestamp criado_em?=now
   
     // Quem executou a ação que cancelou: o dono, o gestor ou o admin que inativou a conta
@@ -83,6 +83,11 @@ table reserva {
   
     // Motivo da recusa, de 1 a 500 caracteres, visível ao dono da reserva
     text? motivo_recusa? filters=trim
+
+    // Reserva nova que deslocou esta por prioridade (C8); só no motivo PRIORIDADE
+    int? deslocada_por_reserva_id? {
+      table = "reserva"
+    }
   }
 
   index = [

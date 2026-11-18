@@ -27,6 +27,7 @@ query parametros verb=GET {
     granularidade_minutos    : $configuracao.granularidade_minutos
     dias_funcionamento       : $configuracao.dias_funcionamento
     prazo_cancelamento_minutos: $configuracao.prazo_cancelamento_minutos
+    prazo_deslocamento_minutos: $configuracao.prazo_deslocamento_minutos
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"

@@ -69,7 +69,9 @@ def formulario() -> rx.Component:
             rx.text(
                 "Data e horário são opcionais; informados, cada espaço diz se o "
                 "pedido está dentro das regras do tipo e se está livre, e os "
-                "livres podem ser reservados.",
+                "livres podem ser reservados. Um espaço ocupado por reservas de "
+                "prioridade menor que a sua pode ser reservado deslocando-as, "
+                "com confirmação.",
                 size="1",
             ),
             rx.button("Buscar", type="submit"),
@@ -142,6 +144,15 @@ def linha_resultado(espaco: rx.Var[dict[str, str]]) -> rx.Component:
                     size="1",
                     on_click=BuscaState.abrir_reservar(espaco),
                 ),
+                rx.cond(
+                    espaco["pode_deslocar"] == "sim",
+                    rx.button(
+                        "Deslocar e reservar",
+                        size="1",
+                        color_scheme="orange",
+                        on_click=BuscaState.abrir_reservar(espaco),
+                    ),
+                ),
             )
         ),
     )
@@ -187,6 +198,8 @@ def dialogo_reservar() -> rx.Component:
         BuscaState.confirmar_reservar,
         rx.text(espaco["nome"] + " — " + espaco["unidade"], size="2"),
         rx.text(BuscaState.pedido_texto, size="2", weight="medium"),
+        # Quantas reservas de prioridade menor serão canceladas (C8), sem nomes
+        mensagem(BuscaState.aviso_deslocamento, "orange"),
         rx.cond(
             espaco["exige_aprovacao"] == "sim",
             rx.callout(
@@ -197,7 +210,7 @@ def dialogo_reservar() -> rx.Component:
             ),
         ),
         mensagem(BuscaState.erro_dialogo, "red"),
-        botao="Reservar",
+        botao=BuscaState.botao_reservar,
         limpar_ao_enviar=False,
     )
 

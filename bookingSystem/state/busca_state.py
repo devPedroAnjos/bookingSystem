@@ -1,8 +1,9 @@
 """Estado da página de busca de espaços (todos os papéis).
 
 Só usabilidade: tipos permitidos ao papel, regras do tipo, formato de data e
-hora e ocupação são decididos no Xano. "Livre" é informativo: a reserva
-confere tudo de novo no momento da criação (C6, design D13 e D14).
+hora, ocupação e deslocamento por prioridade são decididos no Xano. "Livre" e
+"deslocável" são informativos: a reserva confere tudo de novo no momento da
+criação (C6, design D13 e D14; C8, design D7 e D8).
 """
 
 import reflex as rx
@@ -43,6 +44,16 @@ def _tipo_para_tela(tipo: dict) -> dict[str, str]:
     }
 
 
+def _texto_deslocamento(quantidade: int) -> str:
+    """Aviso da confirmação: quantas reservas o pedido vai deslocar."""
+    if quantidade == 1:
+        return "1 reserva de prioridade menor será cancelada para esta reserva."
+    return (
+        f"{quantidade} reservas de prioridade menor serão canceladas para esta "
+        "reserva."
+    )
+
+
 def _espaco_para_tela(espaco: dict) -> dict[str, str]:
     if "dentro_das_regras" not in espaco:
         horario = ""
@@ -76,6 +87,16 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
             if espaco.get("dentro_das_regras") and espaco.get("ocupado") is False
             else "nao"
         ),
+        # Ocupado por reservas que o usuário pode deslocar (C8); o Xano já só
+        # marca deslocável o que está dentro das regras
+        "pode_deslocar": (
+            "sim"
+            if espaco.get("dentro_das_regras")
+            and espaco.get("ocupado") is True
+            and espaco.get("deslocavel") is True
+            else "nao"
+        ),
+        "deslocaria": str(espaco.get("deslocaria") or 0),
     }
 
 
@@ -102,6 +123,9 @@ class BuscaState(rx.State):
     reservar: dict[str, str] = {}
     # Recusa da reserva mostrada dentro da confirmação (spec busca-espacos)
     erro_dialogo: str = ""
+    # Deslocamento por prioridade confirmado no diálogo aberto e o aviso (C8)
+    deslocar: bool = False
+    aviso_deslocamento: str = ""
 
     @rx.var
     def opcoes_unidade(self) -> list[dict[str, str]]:
@@ -121,6 +145,10 @@ class BuscaState(rx.State):
             f"{dia}/{mes}/{ano}, das {self.pedido['hora_inicio']} "
             f"às {self.pedido['hora_fim']}"
         )
+
+    @rx.var
+    def botao_reservar(self) -> str:
+        return "Deslocar e reservar" if self.deslocar else "Reservar"
 
     @rx.event
     async def carregar(self):
@@ -197,6 +225,12 @@ class BuscaState(rx.State):
         self.mensagem_sucesso = ""
         self.erro_dialogo = ""
         self.reservar = espaco
+        self.deslocar = espaco.get("pode_deslocar") == "sim"
+        self.aviso_deslocamento = (
+            _texto_deslocamento(int(espaco.get("deslocaria") or 0))
+            if self.deslocar
+            else ""
+        )
         self.reservar_aberta = True
 
     @rx.event
@@ -214,6 +248,7 @@ class BuscaState(rx.State):
                 self.pedido["data"],
                 self.pedido["hora_inicio"],
                 self.pedido["hora_fim"],
+                deslocar=self.deslocar,
             )
         except api.ErroValidacao as erro:
             # Ex.: horário ocupado depois da busca; a confirmação não fecha
@@ -222,6 +257,12 @@ class BuscaState(rx.State):
         except api.ErroApi as erro:
             self.reservar_aberta = False
             return await tratar_erro_api(self, erro)
+        if resposta.get("requer_confirmacao"):
+            # Ocupado depois da busca por reservas deslocáveis: nada foi
+            # gravado, e só um novo clique confirma o deslocamento (C8, D8)
+            self.deslocar = True
+            self.aviso_deslocamento = resposta["mensagem"]
+            return
         self.reservar_aberta = False
         self.mensagem_sucesso = resposta["mensagem"]
         # Atualiza livre e ocupado com o mesmo pedido

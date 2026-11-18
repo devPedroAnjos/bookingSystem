@@ -647,17 +647,26 @@ async def buscar_espacos(
 
 
 async def criar_reserva(
-    token: str, espaco_id: int, data: str, hora_inicio: str, hora_fim: str
+    token: str,
+    espaco_id: int,
+    data: str,
+    hora_inicio: str,
+    hora_fim: str,
+    deslocar: bool = False,
 ) -> dict[str, Any]:
     """Reserva o espaço para o próprio usuário (data AAAA-MM-DD, horas HH:MM).
 
-    Devolve a mensagem e a situação: CONFIRMADA ou PENDENTE.
+    Devolve a mensagem, a situação (CONFIRMADA ou PENDENTE) e quantas
+    reservas de prioridade menor foram deslocadas. Com `requer_confirmacao`,
+    nada foi gravado: o pedido deslocaria reservas e só é feito de novo com
+    `deslocar=True` (C8, design D4).
     """
     dados = {
         "espaco_id": espaco_id,
         "data": data,
         "hora_inicio": hora_inicio,
         "hora_fim": hora_fim,
+        "deslocar": deslocar,
     }
     return await _requisitar(
         "POST", _url(_RESERVAS, "criar_reserva"), token, dados

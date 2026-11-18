@@ -26,6 +26,11 @@ table configuracao_geral {
     // Reservas (C6, design D12): minutos antes do início até os quais o usuário cancela sem falta.
     // Preenchido pelo bootstrap; lido direto da tabela por cancelar_reserva e minhas_reservas.
     int? prazo_cancelamento_minutos?
+
+    // Deslocamento por prioridade (C8, design D1): minutos que a nova reserva e cada deslocada
+    // precisam estar, no mínimo, à frente do início. Preenchido pelo bootstrap; lido direto da
+    // tabela por criar_reserva e buscar_espacos.
+    int? prazo_deslocamento_minutos?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]
