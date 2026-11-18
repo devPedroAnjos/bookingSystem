@@ -80,7 +80,7 @@ Cada espaço encontrado DEVE (MUST) trazer: id, nome, código, unidade (id e nom
 - **THEN** os dois aparecem, cada um com o nome da própria unidade
 
 ### Requirement: Horário pedido na busca
-Quando data e horário são informados, cada espaço do resultado DEVE (MUST) indicar se o pedido está **dentro das regras do tipo** (capability `regras-tipo`) e, quando não está, os motivos. Espaços fora das regras continuam no resultado, com os motivos. Cada espaço DEVE indicar também se está **livre** ou **ocupado** no intervalo pedido: ocupado quando há reserva `PENDENTE` ou `CONFIRMADA` sobreposta no espaço (capability `reservas`), sem contar a pendente cujo início já chegou, que expirou (capability `aprovacao-reservas`). A busca NÃO DEVE (MUST NOT) identificar quem ocupa o horário. A indicação é informativa: a reserva verifica tudo de novo no momento da criação.
+Quando data e horário são informados, cada espaço do resultado DEVE (MUST) indicar se o pedido está **dentro das regras do tipo** (capability `regras-tipo`) e, quando não está, os motivos. Espaços fora das regras continuam no resultado, com os motivos. Cada espaço DEVE indicar também se está **livre** ou **ocupado** no intervalo pedido: ocupado quando há reserva `PENDENTE` ou `CONFIRMADA` sobreposta no espaço (capability `reservas`), sem contar a pendente cujo início já chegou, que expirou (capability `aprovacao-reservas`). Cada espaço ocupado e dentro das regras DEVE indicar ainda se quem busca poderia deslocar a ocupação, pelas condições do deslocamento por prioridade (capability `reservas`), e quantas reservas seriam deslocadas; espaços livres ou fora das regras aparecem não deslocáveis, com 0 reservas a deslocar. A busca NÃO DEVE (MUST NOT) identificar quem ocupa o horário. As indicações são informativas: a reserva verifica tudo de novo no momento da criação.
 
 #### Scenario: Dentro e fora das regras
 - **GIVEN** "Biblioteca" aceita até 180 minutos e "Laboratório" até 240 minutos
@@ -106,7 +106,36 @@ Quando data e horário são informados, cada espaço do resultado DEVE (MUST) in
 
 #### Scenario: Sem data e horário
 - **WHEN** alguém busca sem informar data e horário
-- **THEN** os espaços aparecem sem indicação de regras de horário nem de ocupação
+- **THEN** os espaços aparecem sem indicação de regras de horário, de ocupação nem de deslocamento
+
+#### Scenario: Ocupado e deslocável
+- **GIVEN** "LAB-01" tem reservas de dois alunos sobrepostas ao intervalo pedido, que começa depois de amanhã
+- **WHEN** um professor busca "Laboratório" para esse intervalo
+- **THEN** "LAB-01" aparece ocupado e deslocável, com 2 reservas a deslocar, sem indicação de quem reservou
+
+#### Scenario: Ocupado e não deslocável
+- **GIVEN** "LAB-01" tem uma reserva de um professor sobreposta ao intervalo pedido
+- **WHEN** outro professor busca "Laboratório" para esse intervalo
+- **THEN** "LAB-01" aparece ocupado e não deslocável
+
+#### Scenario: Deslocamento fora do prazo
+- **GIVEN** o prazo para deslocar é de 120 minutos e "LAB-01" tem uma reserva de aluno que começa daqui a 1 hora
+- **WHEN** um professor busca "LAB-01" para esse intervalo
+- **THEN** "LAB-01" aparece ocupado e não deslocável
+
+#### Scenario: Nova reserva exigiria aprovação
+- **GIVEN** o admin configurou "Laboratório" para exigir aprovação do professor, e "LAB-01" tem uma reserva de aluno que começa depois de amanhã
+- **WHEN** um professor busca "LAB-01" para esse intervalo
+- **THEN** "LAB-01" aparece ocupado e não deslocável
+
+#### Scenario: Ocupado e fora das regras
+- **GIVEN** "BIB-01" tem uma reserva de aluno das 21h40 às 22h40 de depois de amanhã
+- **WHEN** um professor busca "BIB-01" das 22h00 às 22h50
+- **THEN** "BIB-01" aparece fora das regras, ocupado e não deslocável, com 0 reservas a deslocar
+
+#### Scenario: Espaço livre não tem o que deslocar
+- **WHEN** um espaço aparece livre no intervalo pedido
+- **THEN** ele aparece não deslocável, com 0 reservas a deslocar
 
 ### Requirement: Opções dos filtros
 O sistema DEVE (MUST) oferecer a todo usuário com conta ativa as opções dos filtros da busca:
@@ -124,7 +153,7 @@ As unidades vêm da listagem pública de unidades ativas. As listagens de gestã
 - **THEN** o sistema responde com acesso negado
 
 ### Requirement: Tela de busca
-O frontend DEVE (MUST) oferecer a todos os usuários uma página "Buscar espaços", com os filtros, um botão para buscar e a lista de resultados. A busca só é enviada ao clicar no botão. Com data e horário informados, cada resultado mostra "dentro das regras do tipo" ou os motivos de estar fora delas e se o espaço está livre ou ocupado; os espaços livres e dentro das regras oferecem "Reservar". "Reservar" abre uma confirmação com o espaço, a unidade, a data, o horário e se a reserva exigirá aprovação; depois de confirmar, a página mostra se a reserva foi confirmada ou ficou aguardando aprovação, ou mostra a recusa dentro da confirmação, e atualiza o resultado. A página DEVE avisar que a disponibilidade é conferida de novo no momento da reserva.
+O frontend DEVE (MUST) oferecer a todos os usuários uma página "Buscar espaços", com os filtros, um botão para buscar e a lista de resultados. A busca só é enviada ao clicar no botão. Com data e horário informados, cada resultado mostra "dentro das regras do tipo" ou os motivos de estar fora delas e se o espaço está livre ou ocupado; os espaços livres e dentro das regras oferecem "Reservar", e os ocupados, deslocáveis e dentro das regras oferecem "Deslocar e reservar". "Reservar" abre uma confirmação com o espaço, a unidade, a data, o horário e se a reserva exigirá aprovação. "Deslocar e reservar" abre a mesma confirmação, com o aviso de quantas reservas de prioridade menor serão canceladas. Se a criação pedir a confirmação do deslocamento de um espaço que parecia livre, a confirmação passa a mostrar esse aviso e pede uma nova confirmação. Depois de confirmar, a página mostra se a reserva foi confirmada ou ficou aguardando aprovação, ou mostra a recusa dentro da confirmação, e atualiza o resultado. A página DEVE avisar que a disponibilidade é conferida de novo no momento da reserva.
 
 #### Scenario: Buscar pela tela
 - **WHEN** um aluno escolhe "Biblioteca", informa uma data e um horário e clica em buscar
@@ -143,8 +172,20 @@ O frontend DEVE (MUST) oferecer a todos os usuários uma página "Buscar espaço
 - **THEN** a confirmação mostra a recusa de horário ocupado, sem fechar
 
 #### Scenario: Espaço ocupado sem botão
-- **WHEN** um resultado aparece ocupado ou fora das regras
-- **THEN** a página não oferece "Reservar" para ele
+- **WHEN** um resultado aparece ocupado e não deslocável, ou fora das regras
+- **THEN** a página não oferece "Reservar" nem "Deslocar e reservar" para ele
+
+#### Scenario: Deslocar pela busca
+- **GIVEN** "LAB-01" aparece ocupado e deslocável, com 1 reserva a deslocar, para o professor Carlos
+- **WHEN** Carlos escolhe "Deslocar e reservar" em "LAB-01"
+- **THEN** a confirmação avisa que 1 reserva de prioridade menor será cancelada
+- **AND** ao confirmar, a página informa que a reserva foi confirmada e que 1 reserva foi deslocada, e o resultado é atualizado
+
+#### Scenario: Ocupado depois da busca e deslocável
+- **GIVEN** "LAB-01" apareceu livre para Carlos, e um aluno o reservou em seguida
+- **WHEN** Carlos confirma "Reservar" em "LAB-01"
+- **THEN** a confirmação continua aberta, avisa que 1 reserva de prioridade menor será cancelada e pede nova confirmação
+- **AND** nada é gravado até Carlos confirmar de novo
 
 #### Scenario: Nenhum resultado
 - **WHEN** a busca não encontra espaços
