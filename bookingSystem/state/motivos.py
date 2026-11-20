@@ -45,6 +45,16 @@ MOTIVOS_CANCELAMENTO = {
     "ESPACO_INDISPONIVEL": "espaço indisponível",
 }
 
+# Situações de uma entrada de fila de espera (C9); o Xano devolve a situação efetiva
+SITUACOES_FILA = {
+    "AGUARDANDO": "Aguardando vaga",
+    "NOTIFICADA": "Vaga liberada",
+    "ATENDIDA": "Reserva criada",
+    "EXPIRADA": "Prazo para confirmar terminou",
+    "DESISTIU": "Você desistiu",
+    "ENCERRADA": "Fila encerrada",
+}
+
 AVISO_OUTRO_VISIVEL = (
     'O texto de "Outro" fica visível para quem tiver a reserva cancelada.'
 )

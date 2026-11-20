@@ -71,7 +71,8 @@ def formulario() -> rx.Component:
                 "pedido está dentro das regras do tipo e se está livre, e os "
                 "livres podem ser reservados. Um espaço ocupado por reservas de "
                 "prioridade menor que a sua pode ser reservado deslocando-as, "
-                "com confirmação.",
+                "com confirmação. Nos demais espaços ocupados, você pode entrar "
+                "na fila de espera do horário.",
                 size="1",
             ),
             rx.button("Buscar", type="submit"),
@@ -152,8 +153,26 @@ def linha_resultado(espaco: rx.Var[dict[str, str]]) -> rx.Component:
                         color_scheme="orange",
                         on_click=BuscaState.abrir_reservar(espaco),
                     ),
+                    acao_fila(espaco),
                 ),
             )
+        ),
+    )
+
+
+def acao_fila(espaco: rx.Var[dict[str, str]]) -> rx.Component:
+    """Espaço ocupado e não deslocável: entrar na fila ou a indicação (C9)."""
+    return rx.cond(
+        espaco["na_fila"] == "sim",
+        rx.badge("Você está na fila", color_scheme="blue"),
+        rx.cond(
+            espaco["pode_entrar_fila"] == "sim",
+            rx.button(
+                "Entrar na fila",
+                size="1",
+                variant="soft",
+                on_click=BuscaState.abrir_fila(espaco),
+            ),
         ),
     )
 
@@ -215,6 +234,28 @@ def dialogo_reservar() -> rx.Component:
     )
 
 
+def dialogo_fila() -> rx.Component:
+    espaco = BuscaState.fila
+    return dialogo(
+        BuscaState.fila_aberta,
+        BuscaState.mudar_fila,
+        "Entrar na fila de " + espaco["codigo"],
+        BuscaState.confirmar_fila,
+        rx.text(espaco["nome"] + " — " + espaco["unidade"], size="2"),
+        rx.text(BuscaState.pedido_texto, size="2", weight="medium"),
+        rx.callout(
+            "Quando a vaga for liberada, ela aparece no topo das páginas e em "
+            "\"Minhas reservas\", e você precisa confirmar dentro do prazo da "
+            "fila. Quem tem prioridade maior passa à frente.",
+            color_scheme="blue",
+            width="100%",
+        ),
+        mensagem(BuscaState.erro_fila, "red"),
+        botao="Entrar na fila",
+        limpar_ao_enviar=False,
+    )
+
+
 def buscar() -> rx.Component:
     return layout_autenticado(
         rx.heading("Buscar espaços", size="5"),
@@ -229,4 +270,5 @@ def buscar() -> rx.Component:
         regras_dos_tipos(),
         resultados(),
         dialogo_reservar(),
+        dialogo_fila(),
     )

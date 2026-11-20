@@ -18,6 +18,9 @@ LIMITES = (
     "granularidade_minutos",
     "prazo_cancelamento_minutos",
     "prazo_deslocamento_minutos",
+    "prazo_fila_minutos",
+    "prazo_confirmacao_fila_minutos",
+    "tempo_minimo_fila_minutos",
 )
 
 # Dias de funcionamento em ISO: 1 = segunda a 7 = domingo

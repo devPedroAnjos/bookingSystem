@@ -3,7 +3,9 @@
 Só usabilidade: tipos permitidos ao papel, regras do tipo, formato de data e
 hora, ocupação e deslocamento por prioridade são decididos no Xano. "Livre" e
 "deslocável" são informativos: a reserva confere tudo de novo no momento da
-criação (C6, design D13 e D14; C8, design D7 e D8).
+criação (C6, design D13 e D14; C8, design D7 e D8). Desde a C9, o espaço
+ocupado e não deslocável pode oferecer "Entrar na fila" (`pode_entrar_fila`),
+e o espaço em cuja fila o usuário já está mostra essa indicação (`na_fila`).
 """
 
 import reflex as rx
@@ -97,6 +99,9 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
             else "nao"
         ),
         "deslocaria": str(espaco.get("deslocaria") or 0),
+        # Fila de espera (C9, design D9): o Xano decide as duas indicações
+        "pode_entrar_fila": "sim" if espaco.get("pode_entrar_fila") else "nao",
+        "na_fila": "sim" if espaco.get("na_fila") else "nao",
     }
 
 
@@ -126,6 +131,11 @@ class BuscaState(rx.State):
     # Deslocamento por prioridade confirmado no diálogo aberto e o aviso (C8)
     deslocar: bool = False
     aviso_deslocamento: str = ""
+
+    # Entrada na fila de espera (C9)
+    fila_aberta: bool = False
+    fila: dict[str, str] = {}
+    erro_fila: str = ""
 
     @rx.var
     def opcoes_unidade(self) -> list[dict[str, str]]:
@@ -266,4 +276,41 @@ class BuscaState(rx.State):
         self.reservar_aberta = False
         self.mensagem_sucesso = resposta["mensagem"]
         # Atualiza livre e ocupado com o mesmo pedido
+        return await self._consultar(self._ultimos_filtros)
+
+    # ---------- fila de espera (C9) ----------
+
+    @rx.event
+    def abrir_fila(self, espaco: dict):
+        self.mensagem_erro = ""
+        self.mensagem_sucesso = ""
+        self.erro_fila = ""
+        self.fila = espaco
+        self.fila_aberta = True
+
+    @rx.event
+    def mudar_fila(self, aberta: bool):
+        self.fila_aberta = aberta
+
+    @rx.event
+    async def confirmar_fila(self, _dados: dict):
+        self.erro_fila = ""
+        token = await token_da_sessao(self)
+        try:
+            resposta = await api.entrar_fila(
+                token,
+                int(self.fila["id"]),
+                self.pedido["data"],
+                self.pedido["hora_inicio"],
+                self.pedido["hora_fim"],
+            )
+        except api.ErroValidacao as erro:
+            # Ex.: o horário ficou livre depois da busca; a confirmação não fecha
+            self.erro_fila = erro.mensagem
+            return
+        except api.ErroApi as erro:
+            self.fila_aberta = False
+            return await tratar_erro_api(self, erro)
+        self.fila_aberta = False
+        self.mensagem_sucesso = resposta["mensagem"]
         return await self._consultar(self._ultimos_filtros)
