@@ -8,6 +8,10 @@
 // por avaliar_deslocamento, e cada reserva grava deslocada_por_reserva_id.
 // O motivo da desativação (código e descrição de "Outro") só é gravado no modo espaço (D17).
 // Gera um CANCELAR_RESERVA por reserva, com a unidade do espaço no momento do cancelamento.
+// C9 (design D5), nesta ordem, depois dos cancelamentos: nos modos conta e espaço, encerra as
+// entradas de fila ativas da conta ou dos espaços (ENCERRAR_FILA com o ator e o motivo, e a unidade
+// atual do espaço, que na mudança de unidade ainda é a de origem); depois, em todos os modos,
+// processar_fila avisa as filas das vagas liberadas na mesma transação.
 // Cancela as reservas selecionadas e devolve a quantidade e o texto para a mensagem da rota
 function cancelar_reservas {
   input {
@@ -157,7 +161,99 @@ function cancelar_reservas {
         } as $registro_auditoria
       }
     }
-  
+
+    // Encerramento das entradas de fila (C9, D5): explícito, porque as rotas chamam esta função
+    // antes de gravar a desativação, a nova unidade ou o novo tipo
+    var $entradas_a_encerrar {
+      value = []
+    }
+
+    conditional {
+      if ($input.modo == "conta") {
+        db.query entrada_fila {
+          where = $db.entrada_fila.usuario_id == $input.usuario_id && ($db.entrada_fila.status == "AGUARDANDO" || $db.entrada_fila.status == "NOTIFICADA")
+          return = {type: "list"}
+        } as $entradas_da_conta
+
+        var.update $entradas_a_encerrar {
+          value = $entradas_da_conta
+        }
+      }
+
+      elseif ($input.modo == "espaco") {
+        var $ids_espacos_fila {
+          value = ($input.espacos_ids|first_notnull:[])|map:($$|to_int)
+        }
+
+        conditional {
+          if (($ids_espacos_fila|count) > 0) {
+            db.query entrada_fila {
+              where = $db.entrada_fila.espaco_id in $ids_espacos_fila && ($db.entrada_fila.status == "AGUARDANDO" || $db.entrada_fila.status == "NOTIFICADA")
+              return = {type: "list"}
+            } as $entradas_dos_espacos
+
+            var.update $entradas_a_encerrar {
+              value = $entradas_dos_espacos
+            }
+          }
+        }
+      }
+    }
+
+    conditional {
+      if (($entradas_a_encerrar|count) > 0) {
+        var $ids_espacos_entradas {
+          value = $entradas_a_encerrar|map:$$.espaco_id|unique
+        }
+
+        db.query espaco {
+          where = $db.espaco.id in $ids_espacos_entradas
+          return = {type: "list"}
+        } as $espacos_entradas
+
+        foreach ($entradas_a_encerrar) {
+          each as $entrada {
+            db.edit entrada_fila {
+              field_name = "id"
+              field_value = $entrada.id
+              data = {status: "ENCERRADA"}
+            } as $encerrada
+
+            var $espaco_entrada {
+              value = $espacos_entradas|find:$$.id == $entrada.espaco_id
+            }
+
+            var $dados_antes_entrada {
+              value = {}|set:"status":$entrada.status
+            }
+
+            var $dados_depois_entrada {
+              value = {}
+                |set:"status":$encerrada.status
+                |set:"motivo":$input.motivo
+            }
+
+            function.run registrar_auditoria {
+              input = {
+                ator_id     : $input.ator_id
+                acao        : "ENCERRAR_FILA"
+                entidade    : "entrada_fila"
+                entidade_id : $entrada.id
+                unidade_id  : $espaco_entrada.unidade_id
+                dados_antes : $dados_antes_entrada
+                dados_depois: $dados_depois_entrada
+              }
+            } as $registro_encerramento
+          }
+        }
+      }
+    }
+
+    // As vagas liberadas vão para as filas na mesma transação (C9, D5), em todos os modos
+    function.run processar_fila {
+      input = {agora: $input.agora}
+    } as $fila
+
     var $quantidade {
       value = $reservas|count
     }

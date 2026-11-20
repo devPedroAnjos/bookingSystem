@@ -1,6 +1,7 @@
 // Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9 e da C5, D8).
 // Limites inteiros >= 1, inclusive o prazo de cancelamento (C6, D12) e o prazo para deslocar por
-// prioridade (C8, D9); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
+// prioridade (C8, D9) e os três parâmetros da fila de espera (C9, D2 e D12: corte, prazo para
+// confirmar e tempo mínimo útil); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
 // granularidade divisora de 60 e compatível com as regras dos tipos (conferido na trava);
 // dias de funcionamento de 1 a 7, sem repetição, ao menos um.
 // Reduzir um limite não remove ninguém. Se algo for inválido, nada é gravado.
@@ -17,6 +18,9 @@ query parametros verb=POST {
     int? max_admins?
     int? prazo_cancelamento_minutos?
     int? prazo_deslocamento_minutos?
+    int? prazo_fila_minutos?
+    int? prazo_confirmacao_fila_minutos?
+    int? tempo_minimo_fila_minutos?
     int? granularidade_minutos?
     json? dias_funcionamento?
   }
@@ -48,7 +52,10 @@ query parametros verb=POST {
         max_pedidos_cadastro      : $input.max_pedidos_cadastro,
         max_admins                : $input.max_admins,
         prazo_cancelamento_minutos: $input.prazo_cancelamento_minutos,
-        prazo_deslocamento_minutos: $input.prazo_deslocamento_minutos
+        prazo_deslocamento_minutos: $input.prazo_deslocamento_minutos,
+        prazo_fila_minutos        : $input.prazo_fila_minutos,
+        prazo_confirmacao_fila_minutos: $input.prazo_confirmacao_fila_minutos,
+        tempo_minimo_fila_minutos : $input.tempo_minimo_fila_minutos
       }
     }
   
@@ -138,6 +145,9 @@ query parametros verb=POST {
             max_admins                : $antes.max_admins
             prazo_cancelamento_minutos: $antes.prazo_cancelamento_minutos
             prazo_deslocamento_minutos: $antes.prazo_deslocamento_minutos
+            prazo_fila_minutos        : $antes.prazo_fila_minutos
+            prazo_confirmacao_fila_minutos: $antes.prazo_confirmacao_fila_minutos
+            tempo_minimo_fila_minutos : $antes.tempo_minimo_fila_minutos
             granularidade_minutos     : $antes.granularidade_minutos
             dias_funcionamento        : $antes.dias_funcionamento
           }
@@ -149,6 +159,9 @@ query parametros verb=POST {
             max_admins                : $depois.max_admins
             prazo_cancelamento_minutos: $depois.prazo_cancelamento_minutos
             prazo_deslocamento_minutos: $depois.prazo_deslocamento_minutos
+            prazo_fila_minutos        : $depois.prazo_fila_minutos
+            prazo_confirmacao_fila_minutos: $depois.prazo_confirmacao_fila_minutos
+            tempo_minimo_fila_minutos : $depois.tempo_minimo_fila_minutos
             granularidade_minutos     : $depois.granularidade_minutos
             dias_funcionamento        : $depois.dias_funcionamento
           }

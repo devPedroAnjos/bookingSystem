@@ -10,6 +10,11 @@
 // deslocadas. Não deslocável: a mesma recusa de horário ocupado. Deslocável sem `deslocar`: 200 sem
 // gravar nada, com requer_confirmacao e a quantidade (reserva_id nulo = nada gravado). Deslocável
 // com `deslocar`: grava a nova e cancela as conflitantes (PRIORIDADE) na mesma transação.
+// C9 (design D4 e D7): as validações dos passos 2 a 5 e 7 vêm de validar_pedido_reserva e
+// exigir_limite_ativas, compartilhadas com entrar_fila e confirmar_fila, sem mudar ordem nem
+// mensagens. A vaga retida pela fila (NOTIFICADA no prazo) ocupa e nunca é deslocável: com ela no
+// intervalo, a recusa é a mesma de horário ocupado, antes de avaliar o deslocamento. A faxina antes
+// da transação já processa a fila, então uma reserva direta não fura a fila (C8, decisão 4).
 // Cria uma reserva, dentro da trava de governança
 query criar_reserva verb=POST {
   api_group = "reservas"
@@ -42,26 +47,9 @@ query criar_reserva verb=POST {
       value = $horario.fim
     }
 
-    // Faxina de vencimentos em transação própria (C7, design D3)
+    // Faxina de vencimentos em transação própria (C7, design D3), que também processa a fila (C9)
     function.run aplicar_vencimentos as $vencimentos
 
-    // Rótulos dos motivos de validar_horario_reserva (os mesmos da tela de busca). Cadeia de |set
-    // em vez de objeto literal: o Xano tira as vírgulas dos literais e eles podem perder chaves
-    var $rotulos_horario {
-      value = {}
-        |set:"TIPO_SEM_REGRAS":"tipo sem regras"
-        |set:"FIM_NAO_DEPOIS_DO_INICIO":"o fim deve ser depois do início"
-        |set:"DIAS_DIFERENTES":"início e fim em dias diferentes"
-        |set:"DIA_SEM_FUNCIONAMENTO":"dia sem funcionamento"
-        |set:"FORA_DA_GRANULARIDADE":"horário fora da granularidade"
-        |set:"ANTES_DA_ABERTURA":"início antes da abertura"
-        |set:"DEPOIS_DO_FECHAMENTO":"fim depois do fechamento"
-        |set:"DURACAO_ABAIXO_DA_MINIMA":"duração abaixo da mínima"
-        |set:"DURACAO_ACIMA_DA_MAXIMA":"duração acima da máxima"
-        |set:"ANTECEDENCIA_MINIMA":"antecedência menor que a mínima"
-        |set:"ANTECEDENCIA_MAXIMA":"antecedência maior que a máxima"
-    }
-  
     // Declaradas fora da transação, como $unidade_criada_id em unidades/criar
     var $reserva_id {
       value = null
@@ -97,117 +85,62 @@ query criar_reserva verb=POST {
           }
         } as $ator
       
-        // 2. Releitura dentro da trava (corrida com desativação, C4 D13)
-        db.get espaco {
-          field_name = "id"
-          field_value = $input.espaco_id
-        } as $espaco
-      
-        // Espaço inexistente tem a mesma recusa de espaço não reservável
-        precondition ($espaco != null) {
-          error_type = "inputerror"
-          error = "Este espaço não está disponível para reserva."
-        }
-      
-        db.get unidade {
-          field_name = "id"
-          field_value = $espaco.unidade_id
-        } as $unidade
-      
-        db.get tipo_espaco {
-          field_name = "id"
-          field_value = $espaco.tipo_espaco_id
-        } as $tipo
-      
-        db.query regra_papel {
-          where = $db.regra_papel.tipo_espaco_id == $espaco.tipo_espaco_id
-          return = {type: "list"}
-        } as $regras_do_tipo
-      
-        function.run obter_configuracao_horario as $configuracao
-        function.run tipo_com_regras {
-          input = {tipo: $tipo, regras_do_tipo: $regras_do_tipo}
-        } as $com_regras
-      
-        // 3. Espaço reservável
-        function.run disponibilidade_espaco {
-          input = {
-            espaco_ativo   : $espaco.ativo
-            unidade_ativa  : $unidade.ativa
-            tipo_ativo     : $tipo.ativo
-            tipo_com_regras: $com_regras
-          }
-        } as $disponibilidade
-      
-        precondition ($disponibilidade.reservavel) {
-          error_type = "inputerror"
-          error = "Este espaço não está disponível para reserva."
-        }
-      
-        // 4. Regra do papel
-        function.run regra_do_papel {
-          input = {papel: $ator.papel, regras_do_tipo: $regras_do_tipo}
-        } as $regra
-      
-        precondition ($regra.pode_reservar) {
-          error_type = "inputerror"
-          error = "Seu papel não pode reservar este tipo de espaço."
-        }
-      
-        // 5. Regras de horário, com o agora lido dentro da trava
+        // 2 a 5. Releitura dentro da trava (corrida com desativação, C4 D13), espaço reservável,
+        // regra do papel e regras de horário, com o agora lido dentro da trava (C9, D7)
         var $agora {
           value = now
         }
-      
-        function.run validar_horario_reserva {
+
+        function.run validar_pedido_reserva {
           input = {
-            tipo            : $tipo
-            regras_completas: $com_regras
-            configuracao    : $configuracao
-            inicio          : $inicio
-            fim             : $fim
-            agora           : $agora
+            espaco_id: $input.espaco_id
+            papel    : $ator.papel
+            inicio   : $inicio
+            fim      : $fim
+            agora    : $agora
           }
-        } as $validacao
-      
-        var $motivos_horario {
-          value = $validacao.motivos|map:($rotulos_horario|get:$$)|join:"; "
+        } as $pedido
+
+        var $espaco {
+          value = $pedido.espaco
         }
-      
-        precondition ($validacao.dentro_das_regras) {
-          error_type = "inputerror"
-          error = "Horário fora das regras do tipo: " ~ $motivos_horario ~ "."
+
+        var $tipo {
+          value = $pedido.tipo
         }
-      
+
+        var $regra {
+          value = $pedido.regra
+        }
+
         // 6. (Ponto de extensão C10: recusar quem tem penalidade ativa.)
 
-        // 7. Limite de reservas ativas no tipo atual do espaço (D5); fim > agora porque, até a C10,
-        // reservas passadas continuam CONFIRMADA. Ocupação pela situação efetiva (C7, D2): a
-        // pendente cujo início já chegou expirou e não conta.
-        db.query espaco {
-          where = $db.espaco.tipo_espaco_id == $espaco.tipo_espaco_id
-          return = {type: "list"}
-        } as $espacos_do_tipo
+        // 7. Limite de reservas ativas no tipo atual do espaço (D5)
+        function.run exigir_limite_ativas {
+          input = {
+            usuario_id                 : $ator.id
+            tipo_espaco_id             : $espaco.tipo_espaco_id
+            max_reservas_ativas_usuario: $tipo.max_reservas_ativas_usuario
+            agora                      : $agora
+          }
+        } as $limite_ok
 
-        var $ids_do_tipo {
-          value = $espacos_do_tipo|map:$$.id
-        }
-
-        db.query reserva {
-          where = $db.reserva.usuario_id == $ator.id && $db.reserva.espaco_id in $ids_do_tipo && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.fim > $agora
-          return = {type: "count"}
-        } as $ativas_no_tipo
-      
-        precondition ($ativas_no_tipo < $tipo.max_reservas_ativas_usuario) {
-          error_type = "inputerror"
-          error = "Você já tem o máximo de " ~ $tipo.max_reservas_ativas_usuario ~ " reservas ativas neste tipo de espaço."
-        }
-      
         // 8. (Ponto de extensão C11: recusar horário com bloqueio ativo sobreposto.)
 
         // 9. Conflito (D7): ocupação sobreposta no mesmo espaço; encostadas não conflitam. Ocupam
-        // a confirmada e a pendente que ainda não começou (C7, D2).
-        // (Ponto de extensão C9: vaga retida pela fila, que não é deslocável.)
+        // a confirmada e a pendente que ainda não começou (C7, D2) e a vaga retida pela fila no
+        // prazo (C9, D4). A vaga retida nunca é deslocável: a recusa vem antes do deslocamento,
+        // com a mesma mensagem, sem identificar quem ocupa.
+        db.query entrada_fila {
+          where = $db.entrada_fila.espaco_id == $espaco.id && $db.entrada_fila.status == "NOTIFICADA" && $db.entrada_fila.prazo_confirmacao >= $agora && $db.entrada_fila.inicio < $fim && $db.entrada_fila.fim > $inicio
+          return = {type: "exists"}
+        } as $vaga_retida
+
+        precondition (!$vaga_retida) {
+          error_type = "inputerror"
+          error = "Horário ocupado: já existe uma reserva neste espaço nesse intervalo."
+        }
+
         db.query reserva {
           where = $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           sort = {inicio: "asc"}

@@ -28,6 +28,9 @@ query parametros verb=GET {
     dias_funcionamento       : $configuracao.dias_funcionamento
     prazo_cancelamento_minutos: $configuracao.prazo_cancelamento_minutos
     prazo_deslocamento_minutos: $configuracao.prazo_deslocamento_minutos
+    prazo_fila_minutos        : $configuracao.prazo_fila_minutos
+    prazo_confirmacao_fila_minutos: $configuracao.prazo_confirmacao_fila_minutos
+    tempo_minimo_fila_minutos : $configuracao.tempo_minimo_fila_minutos
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"

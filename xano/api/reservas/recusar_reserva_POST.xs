@@ -1,6 +1,7 @@
 // Recusa de reserva PENDENTE com motivo obrigatório (spec aprovacao-reservas; design D5 e D6).
 // O motivo é validado antes da faxina, com as mesmas mensagens da recusa de cadastro: uma recusa
 // por formato não aciona a faxina. Depois, como em aprovar_reserva.
+// C9 (design D5): a recusa libera a vaga, que vai para a fila na mesma transação.
 // Recusa uma reserva pendente, dentro da trava de governança
 query recusar_reserva verb=POST {
   api_group = "reservas"
@@ -40,6 +41,15 @@ query recusar_reserva verb=POST {
             motivo    : $motivo
           }
         } as $status
+
+        // A vaga liberada é retida para a fila sem janela para reserva direta (C9, D5)
+        var $agora {
+          value = now
+        }
+
+        function.run processar_fila {
+          input = {agora: $agora}
+        } as $fila
       }
     }
   }
