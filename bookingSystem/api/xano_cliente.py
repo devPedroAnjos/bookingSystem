@@ -673,19 +673,66 @@ async def criar_reserva(
     )
 
 
-async def cancelar_reserva(token: str, reserva_id: int) -> dict[str, Any]:
-    """Cancela uma reserva própria dentro do prazo de cancelamento."""
+async def cancelar_reserva(
+    token: str, reserva_id: int, aceitar_falta: bool = False
+) -> dict[str, Any]:
+    """Cancela uma reserva própria antes do início.
+
+    Depois do prazo, a reserva confirmada só é cancelada com `aceitar_falta`;
+    sem ele, a resposta vem com `requer_confirmacao` e nada muda (C10, D8).
+    """
     return await _requisitar(
         "POST",
         _url(_RESERVAS, "cancelar_reserva"),
+        token,
+        {"reserva_id": reserva_id, "aceitar_falta": aceitar_falta},
+    )
+
+
+async def minhas_reservas(token: str) -> dict[str, Any]:
+    """Reservas do usuário, com data e horas em São Paulo, cancelamento e check-in."""
+    return await _requisitar("GET", _url(_RESERVAS, "minhas_reservas"), token)
+
+
+# ---------- Check-in e faltas (C10) ----------
+
+
+async def fazer_checkin(token: str, reserva_id: int) -> dict[str, Any]:
+    """Registra o check-in de uma reserva própria confirmada, dentro da janela."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "fazer_checkin"),
         token,
         {"reserva_id": reserva_id},
     )
 
 
-async def minhas_reservas(token: str) -> dict[str, Any]:
-    """Reservas do usuário, com data e horas em São Paulo e pode_cancelar."""
-    return await _requisitar("GET", _url(_RESERVAS, "minhas_reservas"), token)
+async def minhas_faltas(token: str) -> dict[str, Any]:
+    """Faltas e penalidades do usuário, com `em_vigor` e `ate`."""
+    return await _requisitar("GET", _url(_RESERVAS, "minhas_faltas"), token)
+
+
+async def listar_penalidades(
+    token: str, situacao: str = "", busca: str = ""
+) -> dict[str, Any]:
+    """Penalidades de todos os usuários (só administrador), com `limitada`."""
+    filtros = {"situacao": situacao, "busca": busca}
+    params = {chave: valor for chave, valor in filtros.items() if valor}
+    return await _requisitar(
+        "GET", _url(_CONTAS, "penalidades"), token, params=params
+    )
+
+
+async def anular_penalidade(
+    token: str, penalidade_id: int, parecer: str
+) -> dict[str, Any]:
+    """Anula uma penalidade ativa de outra pessoa, com parecer (só administrador)."""
+    return await _requisitar(
+        "POST",
+        _url(_CONTAS, "anular_penalidade"),
+        token,
+        {"penalidade_id": penalidade_id, "parecer": parecer},
+    )
 
 
 # ---------- Fila de espera (C9) ----------

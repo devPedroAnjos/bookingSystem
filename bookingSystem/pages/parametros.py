@@ -34,6 +34,18 @@ ROTULOS_LIMITES = {
         "Tempo mínimo útil da fila, em minutos antes do corte (a fila fecha "
         "nesse ponto)"
     ),
+    "checkin_antes_minutos": (
+        "Abertura da janela de check-in, em minutos antes do início "
+        "(vale também para as reservas já criadas)"
+    ),
+    "checkin_depois_minutos": (
+        "Fechamento da janela de check-in, em minutos depois do início "
+        "(vale também para as reservas já criadas, inclusive as que estão na "
+        "janela agora)"
+    ),
+    "faltas_para_penalidade": "Faltas para gerar uma penalidade",
+    "janela_faltas_dias": "Janela de contagem das faltas, em dias",
+    "duracao_penalidade_dias": "Duração da penalidade, em dias",
 }
 
 NOMES_DIAS = {

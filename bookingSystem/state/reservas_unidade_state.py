@@ -18,6 +18,8 @@ TODOS_ESPACOS = "todos"
 FILTROS_SITUACAO = [
     {"id": "PENDENTE", "nome": "Pendentes"},
     {"id": "CONFIRMADA", "nome": "Confirmadas"},
+    {"id": "CONCLUIDA", "nome": "Concluídas"},
+    {"id": "NAO_COMPARECEU", "nome": "Não compareceu"},
     {"id": "RECUSADA", "nome": "Recusadas"},
     {"id": "EXPIRADA", "nome": "Expiradas"},
     {"id": "CANCELADA", "nome": "Canceladas"},
@@ -36,6 +38,15 @@ def _data_br(data: str) -> str:
 
 
 def _detalhe(reserva: dict) -> str:
+    """Decisão, cancelamento e check-in (C10), conforme a situação."""
+    texto = _detalhe_situacao(reserva)
+    if reserva.get("check_in_em"):
+        check_in = f"Check-in em {reserva['check_in_em']}"
+        texto = f"{texto} · {check_in}" if texto else check_in
+    return texto
+
+
+def _detalhe_situacao(reserva: dict) -> str:
     """Decisão ou cancelamento, conforme a situação."""
     status = reserva["status"]
     decisor = reserva.get("decidido_por") or ""

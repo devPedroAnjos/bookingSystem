@@ -21,6 +21,11 @@ LIMITES = (
     "prazo_fila_minutos",
     "prazo_confirmacao_fila_minutos",
     "tempo_minimo_fila_minutos",
+    "checkin_antes_minutos",
+    "checkin_depois_minutos",
+    "faltas_para_penalidade",
+    "janela_faltas_dias",
+    "duracao_penalidade_dias",
 )
 
 # Dias de funcionamento em ISO: 1 = segunda a 7 = domingo

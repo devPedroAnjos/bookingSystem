@@ -36,6 +36,7 @@ def menu() -> rx.Component:
                 AuthState.e_admin, item_menu("Tipos de espaço", "/tipos-espaco")
             ),
             rx.cond(AuthState.e_admin, item_menu("Recursos", "/recursos")),
+            rx.cond(AuthState.e_admin, item_menu("Penalidades", "/penalidades")),
             rx.cond(
                 AuthState.e_principal,
                 item_menu("Administradores", "/administradores"),
