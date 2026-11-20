@@ -83,7 +83,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 
 1. **Cadastro e login** — o usuário se cadastra informando nome, e-mail institucional, senha e o tipo de vínculo (aluno, professor ou coordenador). Contas de aluno ficam ativas imediatamente. Contas de professor ficam pendentes até a aprovação de um administrador ou do coordenador da unidade indicada; contas de coordenador, até a aprovação de um administrador. Quem é recusado vê o motivo e pode pedir nova análise.
 2. **Busca de espaços** — por unidade, tipo, data, horário, capacidade e recursos; mostra apenas os tipos que o papel do usuário pode reservar.
-3. **Verificação de disponibilidade** — o sistema verifica penalidade ativa, bloqueios, conflitos de horário e regras do tipo de espaço antes de aceitar o pedido.
+3. **Verificação de disponibilidade** — o sistema verifica penalidade em vigor, bloqueios, conflitos de horário e regras do tipo de espaço antes de aceitar o pedido.
 4. **Reserva** — confirmada imediatamente ou criada como pendente quando o tipo exige aprovação para aquele papel.
 5. **Disputa de concorrência** — quando o horário está ocupado, o sistema decide entre deslocar a reserva de menor prioridade ou colocar o solicitante na fila de espera (ver seção 7.3).
 6. **Reserva recorrente** — professores, coordenadores e administradores podem reservar uma sala de aula semanalmente por um período.
@@ -179,14 +179,27 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 
 ### 7.8 Cancelamento, comparecimento e penalidade
 
+- O usuário cancela as próprias reservas **só antes do início**. Depois do início vale o check-in ou o não comparecimento. Uma reserva com check-in feito também não é cancelada pelo usuário.
 - O usuário pode cancelar **sem penalidade até 2 horas antes** do início, inclusive exatamente no limite. O prazo é um parâmetro (`prazo_cancelamento_minutos`, padrão 120 minutos).
-- Cancelamento com **menos** que esse prazo de antecedência **conta como falta**.
-- Cancelamentos feitos pelo sistema não geram falta: inativar a conta cancela as reservas dela que ainda não começaram; desativar um espaço, um tipo ou uma unidade, trocar o tipo de um espaço ou movê-lo de unidade cancela as reservas afetadas que ainda não terminaram. Essas ações de gestão são recusadas enquanto houver reserva confirmada em andamento num espaço afetado, para admin e coordenador.
-- **Check-in** pelo próprio usuário entre **15 minutos antes e 15 minutos depois** do início. Sem check-in, a reserva é marcada como **não compareceu** e gera falta.
-- **2 faltas em 30 dias** geram **penalidade de 7 dias**. Faltas que já geraram uma penalidade não são contadas novamente.
-- Faltas cometidas durante uma penalidade ativa (por exemplo, em reservas confirmadas antes dela) contam normalmente. Se gerarem nova penalidade, ela **começa quando a atual termina**: as penalidades de um usuário se encadeiam e nunca se sobrepõem. Se uma penalidade for anulada, as encadeadas depois dela são **antecipadas**: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou).
-- Durante a penalidade, o usuário **não pode criar novas reservas nem entrar na fila de espera**. As reservas futuras já confirmadas **são mantidas**.
-- **Somente o administrador** pode anular uma penalidade, sempre registrando o parecer. A contestação pelo usuário ficou fora da v1 (seção 5).
+- **Cancelamento tardio:** cancelar uma reserva **confirmada** com **menos** que esse prazo de antecedência **conta como falta**. O sistema só aceita depois de o usuário confirmar que sabe da falta; sem a confirmação, a reserva não muda.
+- **Pendente:** a reserva pendente é cancelada a qualquer momento antes do início, **sem falta**, porque a pendente que expira sem decisão também não gera falta.
+- Cancelamentos feitos pelo sistema não geram falta. São eles:
+  - inativar a conta, que cancela as reservas dela que ainda não começaram;
+  - desativar um espaço, um tipo ou uma unidade, trocar o tipo de um espaço ou movê-lo de unidade, o que cancela as reservas afetadas que ainda não terminaram.
+
+  Essas ações de gestão são recusadas enquanto houver reserva confirmada em andamento num espaço afetado, para admin e coordenador. A reserva cuja janela de check-in fechou sem check-in não conta como em andamento.
+- **Check-in** pelo próprio usuário, só em reserva confirmada:
+  - **janela:** de 15 minutos antes até 15 minutos depois do início (parâmetros `checkin_antes_minutos` e `checkin_depois_minutos`), sem passar do fim da reserva, com os dois limites incluídos;
+  - **sem check-in:** quando a janela fecha, a reserva vira **não compareceu**, gera falta e deixa de ocupar o horário;
+  - **com check-in:** a reserva vira **concluída** no fim;
+  - **reservas antigas:** valem só as reservas que começam a partir de quando a regra entrou em uso. As anteriores continuam confirmadas, sem falta.
+- **2 faltas em 30 dias**, inclusive o limite exato, geram **penalidade de 7 dias** (parâmetros `faltas_para_penalidade`, `janela_faltas_dias` e `duracao_penalidade_dias`). Faltas que já geraram uma penalidade não são contadas novamente.
+- Faltas cometidas durante uma penalidade em vigor (por exemplo, em reservas confirmadas antes dela) contam normalmente. Se gerarem nova penalidade, ela **começa quando a atual termina**: as penalidades de um usuário se encadeiam e nunca se sobrepõem. Se uma penalidade for anulada, as encadeadas depois dela são **antecipadas**: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou) e mantém a duração que tinha.
+- **Penalidade em vigor** (do início, inclusive, ao fim, exclusive):
+  - o usuário **não pode criar novas reservas, entrar na fila de espera nem confirmar vaga retida**;
+  - as reservas futuras já confirmadas **são mantidas**;
+  - quando a penalidade nasce em vigor, as entradas do usuário na fila são **encerradas**, e a vaga retida passa ao próximo.
+- **Somente o administrador** pode anular uma penalidade, e só uma ativa (em vigor ou ainda por começar). A anulação registra sempre o parecer, que o usuário vê sem o nome de quem anulou. Ninguém anula a própria penalidade. A contestação pelo usuário ficou fora da v1 (seção 5).
 
 ### 7.9 Avaliação
 
@@ -251,6 +264,15 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 
 A fila de espera (C9) usa a mesma porta: a vaga retida vencida não retém, mesmo antes da gravação, e a fila também anda ao abrir as páginas autenticadas quando uma verificação rápida encontra vencimento a gravar.
 
+O comparecimento e as penalidades (C10) também usam a mesma porta. Nela são gravados:
+- o não comparecimento, no fechamento da janela de check-in;
+- a conclusão, no fim da reserva;
+- as faltas;
+- as penalidades;
+- o cumprimento da penalidade.
+
+As faltas de um usuário são gravadas por inteiro e em ordem cronológica antes de qualquer decisão que dependa delas: criar reserva, entrar ou confirmar fila e cancelamento tardio. Isso também acontece dentro da própria operação, para que a decisão de penalidade não dependa da faxina.
+
 Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem outra mudança.
 
 ## 9. Princípios de desenvolvimento
@@ -269,7 +291,7 @@ Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem 
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão ou inativação), bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão ou inativação), bloquear, alterar regra, alterar papel, fazer check-in, registrar não comparecimento e conclusão (ações do sistema, com ator vazio e o instante real), cancelar tardiamente, registrar falta, aplicar penalidade e registrar o cumprimento dela (ações do sistema, salvo a falta por cancelamento tardio), encerrar entradas de fila por penalidade, anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -289,10 +311,10 @@ Ordem das changes (ajustada durante os Explores):
 **Replanejamento de 18/11/2026.** Por causa do prazo de entrega, o usuário replanejou as changes a partir da C9 (decisão 1 do `decisions-log.md` da C9): a central de notificações in-app e a contestação de penalidade saíram da v1 (seção 5), e as changes seguintes ficaram mais enxutas.
 
 9. Fila de espera: entrada no intervalo ocupado para quem não pode deslocar, ordem por prioridade e entrada, vaga retida durante o prazo, corte pelo prazo da fila ou pela antecedência mínima do tipo, confirmação que gera reserva com origem `FILA` (pendente quando o tipo exige aprovação), desistência, encerramento pela gestão e pela inativação, aviso no topo das páginas e seção "Fila de espera" em "Minhas reservas" (C9, `fila-espera`).
-10. Check-in e faltas, na versão enxuta: check-in, não comparecimento, falta e penalidade, sem contestação.
-    - Pendências da C6: penalidade ativa no ponto de extensão da criação; cancelamento tardio com o mesmo prazo; fechamento de reservas passadas; rever o que conta como reserva em andamento se o check-in mudar isso.
-    - Pendências da C7: não comparecimento, fechamento e falta entram no processamento de vencimentos com o instante real; penalidade ativa derivada por datas; janela de check-in de uma reserva aprovada a minutos do início.
-    - Vindas da C9: penalidade ativa na entrada e na confirmação da fila (pontos de extensão comentados em `entrar_fila` e `confirmar_fila`).
+10. Check-in e faltas: check-in, não comparecimento, conclusão, cancelamento tardio com confirmação, faltas, penalidades encadeadas, anulação pelo admin com parecer e antecipação, página "Penalidades" e seção "Faltas e penalidades" em "Minhas reservas", sem contestação (C10, `checkin-faltas`). Resolveu:
+    - **as pendências da C6:** penalidade na criação, cancelamento tardio, fechamento das reservas passadas e "em andamento" sem o não comparecimento;
+    - **as pendências da C7:** vencimentos com o instante real, penalidade em vigor derivada por datas e check-in de reserva aprovada perto do início;
+    - **as pendências vindas da C9:** penalidade na entrada e na confirmação da fila, e encerramento das entradas do penalizado.
 11. Bloqueios.
     - Pendências da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
     - Pendência da C7: procurar as reservas ativas sobrepostas pela situação efetiva.
