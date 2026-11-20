@@ -31,6 +31,8 @@ Usuário (Aluno | Professor | Coordenador | Admin)
 ConfiguraçãoGeral (parâmetros globais — registro único)
 ```
 
+> **Fora da v1:** Contestação (§2.14) e Notificação (§2.16) continuam no modelo como base para a evolução, mas saíram da v1 no replanejamento de 18/11/2026 (`project-overview.md`, seção 5). Na v1, os avisos aparecem nas telas.
+
 ---
 
 ## 2. Conceitos
@@ -231,13 +233,17 @@ Pedido de um usuário para ocupar um intervalo exato de um espaço caso ele seja
 **Principais informações:** usuário; espaço; início; fim; nível de prioridade; situação (`AGUARDANDO`, `NOTIFICADA`, `ATENDIDA`, `EXPIRADA`, `DESISTIU`, `ENCERRADA`); data de entrada; data de notificação; prazo de confirmação; reserva gerada.
 
 **Regras estruturais:**
-- Só pode ser criada quando o intervalo está ocupado (reserva ativa ou vaga retida) e o usuário não pode deslocar quem o ocupa. Nunca para intervalo livre ou sobreposto a bloqueio ativo.
+- Só pode ser criada quando o intervalo está ocupado (reserva ativa ou vaga retida) e o usuário não pode deslocar quem o ocupa. Nunca para intervalo livre, sobreposto a bloqueio ativo ou sobreposto a uma reserva ativa do próprio usuário naquele espaço.
+- A entrada valida as regras da reserva (espaço reservável, papel e regras de horário), menos o conflito e o limite de reservas ativas.
 - Ordem: maior nível de prioridade e, em empate, data de entrada.
-- A vaga é liberada para a fila quando o intervalo dela deixa de ter reserva ativa sobreposta.
-- Enquanto `NOTIFICADA`, a entrada **retém a vaga**: ocupa o intervalo como uma reserva ativa até passar a `ATENDIDA`, `EXPIRADA` ou `DESISTIU`. A retenção não pode ser deslocada nem tomada por entradas que chegarem depois.
+- **Corte:** `inicio` menos o maior entre `prazo_fila_minutos` e a antecedência mínima do tipo. Nenhuma confirmação passa do corte.
+- **Fechamento:** o corte menos `tempo_minimo_fila_minutos`. A partir do fechamento, inclusive, ninguém entra na fila do intervalo, ninguém é avisado e as entradas `AGUARDANDO` passam a `ENCERRADA`, sem aviso.
+- A vaga é liberada para a fila quando o intervalo dela deixa de ter reserva ativa ou vaga retida sobreposta.
+- Enquanto `NOTIFICADA` e no prazo, a entrada **retém a vaga**: ocupa o intervalo como uma reserva ativa até passar a `ATENDIDA`, `EXPIRADA`, `DESISTIU` ou `ENCERRADA`. A retenção não pode ser deslocada nem tomada por entradas que chegarem depois. A retenção cujo prazo venceu não ocupa mais, mesmo antes de a expiração ser gravada (situação efetiva, §2.9).
 - Se uma liberação abre filas de intervalos sobrepostos, a retenção vai para a fila cujo primeiro colocado tem maior prioridade (empate: entrada mais antiga). As demais são reavaliadas quando a retenção termina sem confirmação.
-- O prazo de confirmação é de 2h após a notificação, limitado a 2h antes do início do intervalo da fila.
-- A fila do intervalo é encerrada quando faltam menos de 2h para o início do intervalo da fila.
+- O prazo de confirmação é de `prazo_confirmacao_fila_minutos` após o aviso, limitado ao corte. A confirmação é aceita até o fim do prazo, inclusive.
+- A confirmação gera uma reserva com origem `FILA`, `PENDENTE` se o tipo exige aprovação para o papel, senão `CONFIRMADA`, e passa a entrada para `ATENDIDA`.
+- Desativar, mover ou trocar o tipo do espaço (ou desativar o tipo ou a unidade) e inativar a conta do dono encerram as entradas ativas.
 - Um usuário tem no máximo uma entrada ativa por (espaço, intervalo).
 - Usuário com penalidade ativa não entra na fila.
 
@@ -259,7 +265,7 @@ Impedimento temporário de criar novas reservas e de entrar em filas.
 - Gerada quando o usuário acumula **2 faltas em 30 dias** ainda não vinculadas a outra penalidade. Duração: **7 dias**.
 - Faltas cometidas durante uma penalidade ativa contam normalmente. As penalidades de um usuário **nunca se sobrepõem**: se uma nova for gerada durante uma penalidade ativa, ela começa quando a atual termina. Se uma penalidade for anulada, as encadeadas depois dela são antecipadas: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou).
 - Não cancela reservas já confirmadas.
-- Só o **admin** anula, e apenas a partir de uma contestação.
+- Só o **admin** anula, registrando o parecer. A contestação pelo usuário (§2.14) ficou fora da v1.
 
 ### 2.14 Contestação
 
@@ -268,6 +274,8 @@ Justificativa do usuário pedindo a anulação de uma penalidade.
 **Principais informações:** penalidade (única); usuário; justificativa; situação (`PENDENTE`, `DEFERIDA`, `INDEFERIDA`); parecer; admin que decidiu; datas.
 
 **Regra estrutural:** uma contestação por penalidade. Se deferida, a penalidade passa a `ANULADA`.
+
+**Fora da v1** (replanejamento de 18/11/2026): mantida no modelo para a evolução.
 
 ### 2.15 Avaliação
 
@@ -280,6 +288,8 @@ Nota de 1 a 5 e comentário opcional sobre o uso de um espaço.
 Mensagem in-app para um usuário, opcionalmente ligada a uma reserva.
 
 **Principais informações:** usuário; tipo do evento; título; mensagem; reserva (opcional); lida; data.
+
+**Fora da v1** (replanejamento de 18/11/2026): mantida no modelo para a evolução. Na v1, os avisos aparecem nas telas ("Minhas reservas" e o aviso de vaga retida no topo das páginas).
 
 ### 2.17 Log de Auditoria
 
@@ -302,7 +312,9 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 | Janela de check-in | 15 min antes até 15 min depois do início |
 | Faltas para penalidade / janela | 2 faltas / 30 dias |
 | Duração da penalidade | 7 dias |
-| Prazo para confirmar vaga da fila | 120 min (limitado a 120 min antes do início) |
+| Corte da fila (`prazo_fila_minutos`): antes do início | 120 min (ou a antecedência mínima do tipo, se for maior) |
+| Prazo para confirmar a vaga retida pela fila (`prazo_confirmacao_fila_minutos`), contado do aviso e limitado ao corte | 720 min (12 h) |
+| Tempo mínimo útil da fila (`tempo_minimo_fila_minutos`): o fechamento da fila é o corte menos este valor | 30 min |
 | Antecedência mínima para deslocar por prioridade (vale para a nova reserva e para cada deslocada) | 120 min |
 | Prazo para avaliar | 7 dias |
 | Período máximo de recorrência | 6 meses |
@@ -668,6 +680,8 @@ erDiagram
         int janela_faltas_dias
         int duracao_penalidade_dias
         int prazo_fila_minutos
+        int prazo_confirmacao_fila_minutos
+        int tempo_minimo_fila_minutos
         int prazo_deslocamento_minutos
         int prazo_avaliacao_dias
         int max_meses_recorrencia

@@ -63,14 +63,15 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 - Fluxo de aprovação de reservas pendentes.
 - Fila de espera.
 - Cancelamento, check-in, registro de falta e penalidade.
-- Contestação de penalidade pelo usuário e decisão pelo administrador.
 - Avaliação do uso (nota de 1 a 5 e comentário).
-- Notificações dentro do sistema (in-app).
+- Avisos nas telas do sistema: o motivo de cada cancelamento, recusa e expiração aparece em "Minhas reservas", e a vaga retida pela fila aparece no topo de todas as páginas.
 - Painel, relatórios e log de auditoria.
 
 ### Fora do escopo (v1)
 
 - Notificação por e-mail, SMS ou push (prevista como evolução).
+- Central de notificações in-app, com histórico e marcação de lida (evolução). Saiu da v1 no replanejamento de 18/11/2026, por causa do prazo de entrega; na v1, os avisos aparecem nas próprias telas.
+- Contestação de penalidade pelo usuário (evolução). Saiu da v1 no mesmo replanejamento; o administrador continua podendo anular uma penalidade.
 - Integração com calendário externo (Google/Outlook).
 - Login social ou SSO institucional.
 - Recuperação de senha por e-mail ("esqueci minha senha"). A pessoa pede a um administrador que redefina a senha.
@@ -88,9 +89,9 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 6. **Reserva recorrente** — professores, coordenadores e administradores podem reservar uma sala de aula semanalmente por um período.
 7. **Aprovação** — coordenador aprova ou recusa reservas pendentes (motivo obrigatório na recusa). Sem decisão até o início, a reserva expira.
 8. **Cancelamento** — pelo usuário, com regra de prazo; ou pelo sistema, em caso de bloqueio ou de deslocamento por prioridade.
-9. **Fila de espera** — o primeiro da fila é avisado quando a vaga é liberada e precisa confirmar dentro do prazo.
+9. **Fila de espera** — o primeiro da fila é avisado nas telas do sistema quando a vaga é liberada e precisa confirmar dentro do prazo.
 10. **Check-in e comparecimento** — o usuário confirma presença numa janela em torno do início. A falta de check-in gera falta.
-11. **Penalidade** — o acúmulo de faltas bloqueia novas reservas por um período. O usuário pode contestar e só o administrador pode anular.
+11. **Penalidade** — o acúmulo de faltas bloqueia novas reservas por um período. Só o administrador pode anular.
 12. **Avaliação** — após o uso, nota de 1 a 5 e comentário opcional, visíveis a todos.
 13. **Cadastro de espaços e bloqueios** — pelo coordenador, na própria unidade.
 14. **Gestão** — regras, papéis, penalidades, painel, relatórios e log de auditoria pelo administrador.
@@ -130,22 +131,28 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
   2. faltarem **mais de 2 horas** (`prazo_deslocamento_minutos`) para o início **da nova reserva e de cada reserva deslocada**. Exatamente 2 horas não basta, e uma reserva em andamento nunca é deslocada;
   3. a nova reserva **não exigir aprovação**, ou seja, for confirmada na hora.
 
-  As reservas deslocadas são canceladas **inteiras**, mesmo quando a sobreposição é parcial, sem penalidade, e o usuário é notificado com o motivo (a partir da C14; até lá, ele vê o motivo em "Minhas reservas"). O sistema mostra ao solicitante quantas reservas a ação vai deslocar, sem dizer de quem, e pede confirmação. Sem a confirmação, nada é gravado.
+  As reservas deslocadas são canceladas **inteiras**, mesmo quando a sobreposição é parcial, sem penalidade, e o usuário vê o motivo em "Minhas reservas". O sistema mostra ao solicitante quantas reservas a ação vai deslocar, sem dizer de quem, e pede confirmação. Sem a confirmação, nada é gravado.
 - Se o deslocamento não for possível, o solicitante pode entrar na **fila de espera**. A fila só é oferecida nesse caso: quem pode deslocar recebe a opção de deslocamento.
 - A verificação de conflito e a gravação da reserva acontecem **de forma atômica no backend**. Duas requisições simultâneas nunca podem gerar reservas sobrepostas.
 
 ### 7.4 Fila de espera
 
 - A fila vale para **o mesmo espaço e exatamente o mesmo intervalo** solicitado.
-- Só é possível entrar na fila quando o intervalo está ocupado por reserva ativa ou vaga retida **e** o solicitante não pode deslocar quem o ocupa (seção 7.3). Não se entra na fila de um intervalo livre (a reserva é direta) nem de um intervalo que sobrepõe um bloqueio.
+- Só é possível entrar na fila quando o intervalo está ocupado por reserva ativa ou vaga retida **e** o solicitante não pode deslocar quem o ocupa (seção 7.3). Não se entra na fila de um intervalo livre (a reserva é direta) nem de um intervalo que sobrepõe um bloqueio. Também não se entra na fila de um intervalo que sobrepõe uma reserva ativa do próprio usuário naquele espaço.
+- A entrada passa pelas mesmas regras da reserva (espaço reservável, papel e regras de horário do tipo), menos o conflito e o limite de reservas ativas, que é conferido na confirmação.
 - A ordem da fila é: **nível de prioridade (maior primeiro)** e, em empate, **ordem de entrada**.
-- A vaga é **liberada** para uma fila quando o intervalo dela deixa de ter qualquer reserva ativa sobreposta. Exemplo: o cancelamento de uma reserva das 9h às 12h libera a fila das 10h às 11h.
-- Quando a vaga é liberada, o primeiro da fila é notificado e tem até **2 horas** para confirmar. Esse prazo nunca ultrapassa **2 horas antes do início** da reserva. Se não confirmar, a vaga passa para o próximo.
+- **Corte da fila:** **2 horas** (`prazo_fila_minutos`) antes do início ou, se o tipo de espaço tiver antecedência mínima maior, essa antecedência. Nenhuma confirmação passa do corte.
+- **Fechamento da fila:** o corte menos o **tempo mínimo útil** (`tempo_minimo_fila_minutos`, padrão 30 minutos). A partir do fechamento, ninguém entra na fila desse intervalo, ninguém é avisado e quem aguardava sai da fila sem aviso. Assim, ninguém é avisado de uma vaga com poucos minutos para confirmar.
+- A vaga é **liberada** para uma fila quando o intervalo dela deixa de ter qualquer reserva ativa ou vaga retida sobreposta. Exemplo: o cancelamento de uma reserva das 9h às 12h libera a fila das 10h às 11h.
+- Quando a vaga é liberada, o primeiro da fila é avisado (no topo de todas as páginas e em "Minhas reservas") e tem até **12 horas** (`prazo_confirmacao_fila_minutos`) para confirmar, contadas do aviso, para que uma vaga liberada de madrugada não se perca antes de a pessoa abrir o sistema. Esse prazo nunca ultrapassa o corte da fila. Se não confirmar, a vaga passa para o próximo.
 - Durante o prazo de confirmação, o intervalo fica **retido para o notificado**: não pode ser reservado diretamente, nem tomado por deslocamento, nem retido por outra fila sobreposta. Quem entra na fila depois, mesmo com prioridade maior, não toma a retenção; passa a disputar a próxima rodada. A retenção termina quando o notificado confirma, desiste ou o prazo expira.
 - Quando uma mesma liberação abre filas de intervalos sobrepostos (ex.: 10h–11h e 10h30–11h30), a retenção vai para a fila cujo primeiro colocado tem **maior prioridade** e, em empate, **entrou antes**. As demais continuam aguardando e são reavaliadas quando a retenção termina sem confirmação.
-- O prazo de 2 horas da fila é contado a partir do **início do intervalo da fila**, independentemente da regra de cancelamento de quem liberou a vaga. Exemplo: uma reserva das 9h às 12h cancelada às 7h30 é cancelamento tardio para quem cancelou (gera falta, seção 7.8), mas a fila das 10h às 11h ainda é notificada, com prazo até as 8h.
-- Quando a vaga é liberada a **menos de 2 horas do início** do intervalo da fila, a fila é encerrada e o horário fica livre para reserva direta.
-- Ao confirmar, a reserva passa novamente por todas as validações (penalidade, regras, aprovação).
+- O corte da fila é contado a partir do **início do intervalo da fila**, independentemente da regra de cancelamento de quem liberou a vaga. Exemplo: uma reserva das 9h às 12h cancelada às 7h é cancelamento tardio para quem cancelou (gera falta, seção 7.8), mas a fila das 10h às 11h ainda é avisada, com prazo até as 8h (o corte).
+- Quando a vaga é liberada a partir do fechamento da fila, a fila é encerrada e o horário fica livre para reserva direta.
+- Ao confirmar, a reserva passa novamente por todas as validações (penalidade, regras, limite de reservas ativas, aprovação). Num tipo que exige aprovação para o papel, a reserva gerada pela fila nasce **pendente**.
+- O usuário pode **desistir** a qualquer momento: sair da fila enquanto aguarda, ou abrir mão da vaga retida, que passa ao próximo.
+- Desativar, mover ou trocar o tipo de um espaço (ou desativar o tipo ou a unidade) encerra as entradas de fila dele. Inativar uma conta encerra as entradas da pessoa. Reativar não reabre entradas encerradas.
+- Sem tarefas agendadas (seção 8), a fila anda nas operações: antes de cada operação que grava reservas ou mexe na fila, na própria operação que libera a vaga e ao abrir as páginas autenticadas quando há vencimento a gravar.
 
 ### 7.5 Reserva recorrente
 
@@ -162,12 +169,12 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 - Quem aprova é o **coordenador da unidade do espaço**. O administrador também pode decidir.
 - **Ninguém decide a própria reserva.** Isso só acontece quando o dono mudou de papel depois de criá-la, e a reserva fica para outro coordenador da unidade ou para um administrador.
 - A **recusa exige motivo**, que é enviado ao usuário.
-- Se não houver decisão até o horário de início, a reserva **expira** automaticamente e o usuário é notificado. A partir do início ela deixa de ocupar o horário e aparece como expirada em todas as consultas. A gravação da expiração, e o aviso a partir da C14, acontecem na próxima operação que grava reservas, porque o plano gratuito do Xano não tem tarefas agendadas (seção 8).
+- Se não houver decisão até o horário de início, a reserva **expira** automaticamente e o usuário vê a expiração em "Minhas reservas". A partir do início ela deixa de ocupar o horário e aparece como expirada em todas as consultas. A gravação da expiração acontece na próxima operação que grava reservas ou mexe na fila, ou ao abrir as páginas quando há vencimento a gravar, porque o plano gratuito do Xano não tem tarefas agendadas (seção 8).
 
 ### 7.7 Bloqueios
 
 - Coordenadores (na própria unidade) e administradores bloqueiam espaços por **manutenção, evento ou feriado**.
-- Reservas ativas no período do bloqueio são **canceladas automaticamente**, sem penalidade, e os usuários são notificados com o motivo.
+- Reservas ativas no período do bloqueio são **canceladas automaticamente**, sem penalidade, e os usuários veem o motivo em "Minhas reservas".
 - Entradas de fila de espera no período bloqueado são encerradas.
 
 ### 7.8 Cancelamento, comparecimento e penalidade
@@ -179,7 +186,7 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 - **2 faltas em 30 dias** geram **penalidade de 7 dias**. Faltas que já geraram uma penalidade não são contadas novamente.
 - Faltas cometidas durante uma penalidade ativa (por exemplo, em reservas confirmadas antes dela) contam normalmente. Se gerarem nova penalidade, ela **começa quando a atual termina**: as penalidades de um usuário se encadeiam e nunca se sobrepõem. Se uma penalidade for anulada, as encadeadas depois dela são **antecipadas**: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou).
 - Durante a penalidade, o usuário **não pode criar novas reservas nem entrar na fila de espera**. As reservas futuras já confirmadas **são mantidas**.
-- O usuário pode enviar **uma contestação com justificativa** por penalidade. **Somente o administrador** pode anular uma penalidade, sempre registrando o parecer.
+- **Somente o administrador** pode anular uma penalidade, sempre registrando o parecer. A contestação pelo usuário ficou fora da v1 (seção 5).
 
 ### 7.9 Avaliação
 
@@ -201,10 +208,12 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 - **Inativação:** um administrador inativa uma conta ativa escolhendo um motivo numa lista (com "Outro" e descrição), que fica só no log de auditoria. A pessoa perde o acesso na hora, as reservas dela que ainda não começaram são canceladas e as coordenações dela ficam guardadas. Na **reativação**, o sistema mantém só as coordenações em unidades ativas e com vaga, pede nova unidade ao professor cuja unidade foi desativada e respeita o limite de administradores.
 - **Senha:** todo usuário pode **trocar a própria senha**. O administrador pode **redefinir** a senha de uma conta (os secundários, só de contas que não são de administrador). A senha redefinida é **provisória**: no acesso seguinte, a pessoa só consegue trocá-la antes de usar o sistema. Administradores criados pelo principal também começam com senha provisória.
 
-### 7.11 Notificações
+### 7.11 Avisos ao usuário
 
-- Na v1, as notificações são **in-app** (central de notificações do usuário).
-- Eventos notificados: confirmação, pendência, aprovação, recusa, expiração, cancelamento por bloqueio, deslocamento por prioridade, vaga liberada na fila, lembrete de check-in, falta registrada, penalidade aplicada e decisão de contestação.
+- Na v1, não há central de notificações (seção 5). Os avisos aparecem nas próprias telas:
+  - **"Minhas reservas"** mostra a situação de cada reserva e o motivo de cancelamento, recusa ou expiração (inclusive por bloqueio e por deslocamento);
+  - **vaga retida pela fila:** aviso no topo de todas as páginas autenticadas, com o prazo para confirmar, e a seção "Fila de espera" em "Minhas reservas".
+- Uma central de notificações in-app (histórico, marcação de lida e eventos como lembrete de check-in e penalidade aplicada) fica como evolução.
 
 ## 8. Arquitetura tecnológica
 
@@ -240,6 +249,8 @@ Reflex é a **tecnologia exclusiva** do frontend. Não serão introduzidos React
 - **Uma verdade só para leitura.** Todas as consultas usam a **situação efetiva**: o que já venceu aparece como vencido mesmo antes de ser gravado, e por isso o `status` gravado no banco pode estar atrasado.
 - **O instante real.** Cada vencimento registra quando de fato venceu, não quando foi constatado.
 
+A fila de espera (C9) usa a mesma porta: a vaga retida vencida não retém, mesmo antes da gravação, e a fila também anda ao abrir as páginas autenticadas quando uma verificação rápida encontra vencimento a gravar.
+
 Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem outra mudança.
 
 ## 9. Princípios de desenvolvimento
@@ -258,7 +269,7 @@ Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem 
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão ou inativação), bloquear, alterar regra, alterar papel, aplicar ou anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -275,31 +286,26 @@ Ordem das changes (ajustada durante os Explores):
 6. Reserva avulsa com verificação de conflito e regras: criação atômica com regras do tipo, regra do papel, limite de reservas ativas e conflito; cancelamento pelo usuário no prazo (parâmetro); "Minhas reservas"; busca com livre ou ocupado; inativar conta e desativar, mover ou trocar o tipo de espaços cancelam reservas (recusados com reserva confirmada em andamento), com motivo escolhido numa lista nas desativações e na inativação (C6, `reserva-avulsa`).
 7. Aprovação de reservas: aprovar e recusar pendentes (coordenador da unidade do espaço ou admin; ninguém decide a própria reserva; recusa com motivo); expiração da pendente sem decisão até o início, com vencimentos processados nas operações e situação efetiva nas consultas, porque o plano gratuito do Xano não tem tarefas agendadas (seção 8); página "Reservas da unidade" (C7, `aprovacao-reservas`).
 8. Deslocamento por prioridade: o solicitante de nível maior desloca, com confirmação, reservas de nível estritamente menor, quando a nova e cada deslocada começam a mais de `prazo_deslocamento_minutos` de agora e a nova nasce confirmada; a busca indica se o espaço é deslocável (C8, `deslocamento-prioridade`). O explore separou a fila de espera na C9.
-9. Fila de espera (C9).
-   - Pendências da C6: vaga retida pela fila no ponto de extensão do conflito da criação.
-   - Pendência da C7: a retenção vencida entra na situação efetiva e no processamento de vencimentos.
-   - Decisões do explore da C8 (registradas no `decisions-log.md` da C8):
-     - um parâmetro só, `prazo_fila_minutos`, para o prazo de confirmação e para o corte antes do início;
-     - o prazo do próximo da fila conta a partir de quando ele é de fato avisado; o vencimento de quem estava antes é gravado com o instante real;
-     - a criação de reserva e a entrada na fila processam os vencimentos e a fila do espaço antes de avaliar o conflito, para uma reserva direta não furar a fila; o atraso do aviso sem tráfego é limitação aceita do plano gratuito;
-     - aviso em "Minhas reservas" (seção "Fila de espera", com Confirmar, Desistir e o prazo) e no Início, sem a tabela de notificação;
-     - a entrada na fila valida as regras da criação, menos o conflito e o limite de ativas, que é conferido na confirmação.
-   - Vindas da C8: o deslocamento libera as sobras parciais para a fila; a retenção não é deslocável; a fila só é oferecida a quem não pode deslocar, pela mesma regra do deslocamento.
-   - Em aberto para o explore: a confirmação de fila em tipo que exige aprovação gera uma reserva `PENDENTE`.
-10. Cancelamento tardio, check-in, faltas e penalidades (inclui contestação).
+**Replanejamento de 18/11/2026.** Por causa do prazo de entrega, o usuário replanejou as changes a partir da C9 (decisão 1 do `decisions-log.md` da C9): a central de notificações in-app e a contestação de penalidade saíram da v1 (seção 5), e as changes seguintes ficaram mais enxutas.
+
+9. Fila de espera: entrada no intervalo ocupado para quem não pode deslocar, ordem por prioridade e entrada, vaga retida durante o prazo, corte pelo prazo da fila ou pela antecedência mínima do tipo, confirmação que gera reserva com origem `FILA` (pendente quando o tipo exige aprovação), desistência, encerramento pela gestão e pela inativação, aviso no topo das páginas e seção "Fila de espera" em "Minhas reservas" (C9, `fila-espera`).
+10. Check-in e faltas, na versão enxuta: check-in, não comparecimento, falta e penalidade, sem contestação.
     - Pendências da C6: penalidade ativa no ponto de extensão da criação; cancelamento tardio com o mesmo prazo; fechamento de reservas passadas; rever o que conta como reserva em andamento se o check-in mudar isso.
     - Pendências da C7: não comparecimento, fechamento e falta entram no processamento de vencimentos com o instante real; penalidade ativa derivada por datas; janela de check-in de uma reserva aprovada a minutos do início.
-    - Vinda da C9: penalidade ativa também na entrada da fila.
+    - Vindas da C9: penalidade ativa na entrada e na confirmação da fila (pontos de extensão comentados em `entrar_fila` e `confirmar_fila`).
 11. Bloqueios.
     - Pendências da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
     - Pendência da C7: procurar as reservas ativas sobrepostas pela situação efetiva.
+    - Vindas da C9: o bloqueio recusa a entrada na fila sobreposta (ponto de extensão em `entrar_fila`) e encerra as entradas de fila no período bloqueado.
 12. Reserva recorrente de sala de aula.
-13. Avaliações.
-14. Notificações in-app.
-    - Pendência da C6: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`).
-    - Pendências da C7: notificar aprovação, recusa e expiração; a expiração é notificada só quando gravada, então avaliar processar os vencimentos ao abrir a central de notificações.
-    - Pendência da C8: avisar o dono da reserva deslocada por prioridade.
-15. Painel, relatórios e log de auditoria. O log de auditoria deve ser gravado desde a primeira change que tiver ação sensível. Pendência da C7: painel e relatórios usam a situação efetiva.
+13. Espaço: fotos enviadas pela gestão, busca em formato de feed, página do espaço e avaliações. A avaliação depende das reservas concluídas da C10 (seção 7.9).
+14. Visual: acabamento do frontend, sem mudança de regra.
+15. Painel, relatórios e log de auditoria: em aberto, conforme o prazo. O log de auditoria é gravado desde a primeira change com ação sensível. Pendência da C7: painel e relatórios usam a situação efetiva.
+
+**Trabalho futuro (fora da v1):**
+- Central de notificações in-app. Hoje o motivo de cada cancelamento, recusa, expiração e deslocamento já aparece em "Minhas reservas", e a vaga da fila aparece no topo das páginas. As pendências registradas para ela foram: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`) (C6); notificar aprovação, recusa e expiração (C7); avisar o dono da reserva deslocada (C8).
+- Contestação de penalidade pelo usuário.
+- E-mail de "vaga liberada" para quem está na fila (decisão 28 da C9), para o fim do projeto: Brevo (300 e-mails por dia no plano gratuito, remetente verificado) ou Resend pelo `util.send_email` do Xano (exige domínio próprio). É uma dependência externa nova, com change própria.
 
 ## 12. Fonte de verdade e documentação
 
