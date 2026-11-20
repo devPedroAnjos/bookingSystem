@@ -4,7 +4,9 @@
 // do vencimento (o início). No máximo 50 por rodada, das que venceram primeiro: o teto é técnico
 // (33 vencidas levaram cerca de 3 s no teste 7.6), e o que sobrar continua coberto pela situação
 // efetiva (D2) e vai na próxima rodada.
-// As próximas changes (C8, C9) acrescentam aqui os seus vencimentos.
+// C9 (design D5): depois das expirações de reservas, processar_fila expira as vagas retidas
+// vencidas, encerra as entradas no corte e avisa as filas liberadas, inclusive pelas pendentes
+// que acabaram de expirar. As próximas changes acrescentam aqui os seus vencimentos.
 // Grava os vencimentos já ocorridos e devolve quantas reservas expirou
 function processar_vencimentos {
   input {
@@ -75,6 +77,11 @@ function processar_vencimentos {
     var $quantidade {
       value = $vencidas|count
     }
+
+    // Fila de espera (C9, D5), na mesma transação e trava
+    function.run processar_fila {
+      input = {agora: $input.agora}
+    } as $fila
   }
 
   response = $quantidade

@@ -1,11 +1,14 @@
 """Layout das páginas autenticadas: cabeçalho, menu por papel e Sair.
 
 O menu só esconde o que o papel não usa (usabilidade); o Xano decide o acesso.
+Desde a C9, mostra no topo o aviso de vaga retida pela fila de espera, carregado
+pelo `FilaState.carregar` do on_load de cada página.
 """
 
 import reflex as rx
 
 from bookingSystem.state.auth_state import ROTA_TROCAR_SENHA, AuthState
+from bookingSystem.state.fila_state import FilaState
 
 
 def item_menu(texto: str, rota: str) -> rx.Component:
@@ -46,6 +49,33 @@ def menu() -> rx.Component:
     )
 
 
+def linha_aviso_fila(entrada: rx.Var[dict[str, str]]) -> rx.Component:
+    return rx.text(
+        "Vaga liberada na fila: ",
+        rx.text.strong(entrada["codigo"] + " — " + entrada["espaco"]),
+        ", " + entrada["data"] + ", " + entrada["horario"]
+        + ". Confirme até " + entrada["prazo"] + ".",
+        size="2",
+    )
+
+
+def aviso_fila() -> rx.Component:
+    """Aviso de vaga retida em todas as páginas autenticadas (spec fila-espera)."""
+    return rx.cond(
+        FilaState.avisos.length() > 0,
+        # Sem rx.callout.text: ele gera um <p>, e as linhas (rx.text) também são <p>
+        rx.callout.root(
+            rx.vstack(
+                rx.foreach(FilaState.avisos, linha_aviso_fila),
+                rx.link("Ir para Minhas reservas", href="/minhas-reservas", size="2"),
+                spacing="1",
+            ),
+            color_scheme="amber",
+            width="100%",
+        ),
+    )
+
+
 def layout_autenticado(
     *conteudo: rx.Component,
     permitido: rx.Var[bool] | bool = True,
@@ -77,6 +107,7 @@ def layout_autenticado(
                     wrap="wrap",
                 ),
                 rx.divider(),
+                aviso_fila(),
                 *conteudo,
                 spacing="4",
                 padding_y="24px",

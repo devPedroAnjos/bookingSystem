@@ -30,6 +30,7 @@ from bookingSystem.state.auth_state import (
 from bookingSystem.state.busca_state import BuscaState
 from bookingSystem.state.contas_state import ContasState
 from bookingSystem.state.espacos_state import EspacosState
+from bookingSystem.state.fila_state import FilaState
 from bookingSystem.state.parametros_state import ParametrosState
 from bookingSystem.state.recursos_state import RecursosState
 from bookingSystem.state.reservas_state import ReservasState
@@ -43,73 +44,73 @@ app.add_page(
     login,
     route=ROTA_LOGIN,
     title="Entrar | BookingSystem",
-    on_load=AuthState.abrir_formulario,
+    on_load=[AuthState.abrir_formulario, FilaState.limpar],
 )
 app.add_page(
     cadastro,
     route="/cadastro",
     title="Criar conta | BookingSystem",
-    on_load=AuthState.abrir_formulario,
+    on_load=[AuthState.abrir_formulario, FilaState.limpar],
 )
 app.add_page(
     inicio,
     route=ROTA_INICIO,
     title="Início | BookingSystem",
-    on_load=AuthState.verificar_sessao,
+    on_load=[AuthState.verificar_sessao, FilaState.carregar],
 )
 app.add_page(
     buscar,
     route="/buscar",
     title="Buscar espaços | BookingSystem",
-    on_load=[AuthState.verificar_sessao, BuscaState.abrir],
+    on_load=[AuthState.verificar_sessao, BuscaState.abrir, FilaState.carregar],
 )
 app.add_page(
     minhas_reservas,
     route="/minhas-reservas",
     title="Minhas reservas | BookingSystem",
-    on_load=[AuthState.verificar_sessao, ReservasState.abrir],
+    on_load=[AuthState.verificar_sessao, ReservasState.abrir, FilaState.abrir],
 )
 app.add_page(
     aprovacoes,
     route="/aprovacoes",
     title="Aprovações | BookingSystem",
-    on_load=[AuthState.exigir_gestor, ContasState.abrir_aprovacoes],
+    on_load=[AuthState.exigir_gestor, ContasState.abrir_aprovacoes, FilaState.carregar],
 )
 app.add_page(
     reservas_unidade,
     route="/reservas-unidade",
     title="Reservas da unidade | BookingSystem",
-    on_load=[AuthState.exigir_gestor, ReservasUnidadeState.abrir],
+    on_load=[AuthState.exigir_gestor, ReservasUnidadeState.abrir, FilaState.carregar],
 )
 app.add_page(
     usuarios,
     route="/usuarios",
     title="Usuários | BookingSystem",
-    on_load=[AuthState.exigir_admin, ContasState.abrir_usuarios],
+    on_load=[AuthState.exigir_admin, ContasState.abrir_usuarios, FilaState.carregar],
 )
 app.add_page(
     unidades,
     route="/unidades",
     title="Unidades | BookingSystem",
-    on_load=[AuthState.exigir_admin, UnidadesState.abrir],
+    on_load=[AuthState.exigir_admin, UnidadesState.abrir, FilaState.carregar],
 )
 app.add_page(
     espacos,
     route="/espacos",
     title="Espaços | BookingSystem",
-    on_load=[AuthState.exigir_gestor, EspacosState.abrir],
+    on_load=[AuthState.exigir_gestor, EspacosState.abrir, FilaState.carregar],
 )
 app.add_page(
     tipos_espaco,
     route="/tipos-espaco",
     title="Tipos de espaço | BookingSystem",
-    on_load=[AuthState.exigir_admin, TiposEspacoState.abrir],
+    on_load=[AuthState.exigir_admin, TiposEspacoState.abrir, FilaState.carregar],
 )
 app.add_page(
     recursos,
     route="/recursos",
     title="Recursos | BookingSystem",
-    on_load=[AuthState.exigir_admin, RecursosState.abrir],
+    on_load=[AuthState.exigir_admin, RecursosState.abrir, FilaState.carregar],
 )
 app.add_page(
     trocar_senha,
@@ -121,12 +122,12 @@ app.add_page(
     administradores,
     route="/administradores",
     title="Administradores | BookingSystem",
-    on_load=[AuthState.exigir_principal, AdminsState.abrir],
+    on_load=[AuthState.exigir_principal, AdminsState.abrir, FilaState.carregar],
 )
 app.add_page(
     parametros,
     route="/parametros",
     title="Parâmetros | BookingSystem",
-    on_load=[AuthState.exigir_principal, ParametrosState.abrir],
+    on_load=[AuthState.exigir_principal, ParametrosState.abrir, FilaState.carregar],
 )
 app.add_page(rx.fragment, route="/", on_load=rx.redirect(ROTA_INICIO))

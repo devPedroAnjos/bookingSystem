@@ -31,6 +31,17 @@ table configuracao_geral {
     // precisam estar, no mínimo, à frente do início. Preenchido pelo bootstrap; lido direto da
     // tabela por criar_reserva e buscar_espacos.
     int? prazo_deslocamento_minutos?
+
+    // Fila de espera (C9, design D2 e D3): prazo para confirmar a vaga retida e corte da fila
+    // antes do início (ou a antecedência mínima do tipo, se maior). Preenchido pelo bootstrap;
+    // lido direto da tabela pelas rotas da fila, por processar_fila e por buscar_espacos.
+    int? prazo_fila_minutos?
+
+    // Fila de espera, update D12: prazo para confirmar a vaga retida, contado do aviso e limitado
+    // ao corte, e tempo mínimo útil (o fechamento da fila é o corte menos este valor)
+    int? prazo_confirmacao_fila_minutos?
+
+    int? tempo_minimo_fila_minutos?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]

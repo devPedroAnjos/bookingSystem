@@ -688,6 +688,50 @@ async def minhas_reservas(token: str) -> dict[str, Any]:
     return await _requisitar("GET", _url(_RESERVAS, "minhas_reservas"), token)
 
 
+# ---------- Fila de espera (C9) ----------
+
+
+async def entrar_fila(
+    token: str, espaco_id: int, data: str, hora_inicio: str, hora_fim: str
+) -> dict[str, Any]:
+    """Entra na fila de um intervalo ocupado (data AAAA-MM-DD, horas HH:MM)."""
+    dados = {
+        "espaco_id": espaco_id,
+        "data": data,
+        "hora_inicio": hora_inicio,
+        "hora_fim": hora_fim,
+    }
+    return await _requisitar("POST", _url(_RESERVAS, "entrar_fila"), token, dados)
+
+
+async def confirmar_fila(token: str, entrada_id: int) -> dict[str, Any]:
+    """Confirma a vaga retida e cria a reserva (CONFIRMADA ou PENDENTE)."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "confirmar_fila"),
+        token,
+        {"entrada_id": entrada_id},
+    )
+
+
+async def desistir_fila(token: str, entrada_id: int) -> dict[str, Any]:
+    """Sai da fila ou desiste da vaga retida, que passa ao próximo."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "desistir_fila"),
+        token,
+        {"entrada_id": entrada_id},
+    )
+
+
+async def minha_fila(token: str) -> dict[str, Any]:
+    """Entradas de fila do usuário: `ativas`, `finalizadas` e `avisos`.
+
+    Também faz a fila andar quando há vencimento a gravar (C9, design D6).
+    """
+    return await _requisitar("GET", _url(_RESERVAS, "minha_fila"), token)
+
+
 async def impacto_reservas(token: str, alvo: str, alvo_id: int) -> dict[str, Any]:
     """Quantas reservas uma ação cancelaria e até quando há reserva em uso.
 

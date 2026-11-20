@@ -7,6 +7,11 @@
 // C8 (design D7): o espaço ocupado e dentro das regras diz se quem busca poderia deslocar a
 // ocupação (avaliar_deslocamento, a mesma regra da criação) e quantas reservas seriam deslocadas;
 // livre ou fora das regras: deslocavel falso e deslocaria 0. Só a quantidade sai, nunca quem.
+// C9 (design D9): a vaga retida pela fila no prazo também ocupa e torna o espaço não deslocável
+// (deslocaria 0). na_fila diz se quem busca já está na fila desse espaço e intervalo exatos;
+// pode_entrar_fila, se pode entrar: ocupado, dentro das regras, não deslocável, fora da fila, sem
+// reserva própria ocupando e antes do fechamento da fila (corte menos o tempo mínimo útil, D12).
+// Nunca sai quem ocupa nem quem está na fila.
 // Busca espaços reserváveis pelo usuário
 query buscar_espacos verb=POST {
   api_group = "espacos"
@@ -74,7 +79,25 @@ query buscar_espacos verb=POST {
     var $nivel {
       value = 0
     }
-  
+
+    // C9: vagas retidas sobrepostas, espaços em cuja fila o usuário já está e o prazo da fila
+    var $ids_retidos {
+      value = []
+    }
+
+    var $ids_na_fila {
+      value = []
+    }
+
+    var $prazo_fila {
+      value = 0
+    }
+
+    // Tempo mínimo útil da fila (D12): o fechamento é o corte menos ele
+    var $tempo_minimo_fila {
+      value = 0
+    }
+
     // Lido antes da ocupação: a pendente cujo início já chegou não ocupa (C7, design D2)
     var $agora {
       value = now
@@ -124,12 +147,40 @@ query buscar_espacos verb=POST {
           return = {type: "single"}
         } as $configuracao_reservas
 
-        precondition ($configuracao_reservas != null && !($configuracao_reservas.prazo_deslocamento_minutos|is_null)) {
+        precondition ($configuracao_reservas != null && !($configuracao_reservas.prazo_deslocamento_minutos|is_null) && !($configuracao_reservas.prazo_fila_minutos|is_null) && !($configuracao_reservas.tempo_minimo_fila_minutos|is_null)) {
           error = "Configuração de reservas incompleta: execute o bootstrap."
         }
 
         var.update $prazo_deslocamento {
           value = $configuracao_reservas.prazo_deslocamento_minutos
+        }
+
+        var.update $prazo_fila {
+          value = $configuracao_reservas.prazo_fila_minutos
+        }
+
+        var.update $tempo_minimo_fila {
+          value = $configuracao_reservas.tempo_minimo_fila_minutos
+        }
+
+        // C9 (D4 e D9): vagas retidas no prazo sobrepostas ao intervalo, de todos os espaços
+        db.query entrada_fila {
+          where = $db.entrada_fila.status == "NOTIFICADA" && $db.entrada_fila.prazo_confirmacao >= $agora && $db.entrada_fila.inicio < $fim && $db.entrada_fila.fim > $inicio
+          return = {type: "list"}
+        } as $retidas
+
+        var.update $ids_retidos {
+          value = $retidas|map:$$.espaco_id|unique
+        }
+
+        // Entradas ativas do usuário exatamente neste intervalo
+        db.query entrada_fila {
+          where = $db.entrada_fila.usuario_id == $ator.id && $db.entrada_fila.inicio == $inicio && $db.entrada_fila.fim == $fim && ($db.entrada_fila.status == "AGUARDANDO" || $db.entrada_fila.status == "NOTIFICADA")
+          return = {type: "list"}
+        } as $entradas_do_usuario
+
+        var.update $ids_na_fila {
+          value = $entradas_do_usuario|map:$$.espaco_id|unique
         }
 
         function.run nivel_do_papel {
@@ -273,11 +324,20 @@ query buscar_espacos verb=POST {
                       }
                     } as $validacao
                   
-                    var $ocupado {
+                    var $ocupado_por_reserva {
                       value = $ids_ocupados|in:$espaco.id
                     }
 
-                    // C8 (D7): só o ocupado e dentro das regras pode ser deslocável
+                    var $retido {
+                      value = $ids_retidos|in:$espaco.id
+                    }
+
+                    var $ocupado {
+                      value = $ocupado_por_reserva || $retido
+                    }
+
+                    // C8 (D7): só o ocupado e dentro das regras pode ser deslocável; a vaga retida
+                    // nunca é deslocável (C9, D9)
                     var $deslocavel {
                       value = false
                     }
@@ -287,7 +347,7 @@ query buscar_espacos verb=POST {
                     }
 
                     conditional {
-                      if ($ocupado && $validacao.dentro_das_regras) {
+                      if ($ocupado && $validacao.dentro_das_regras && !$retido) {
                         var $conflitantes {
                           value = $sobrepostas_todas|filter:($$.espaco_id == $espaco.id)
                         }
@@ -330,6 +390,48 @@ query buscar_espacos verb=POST {
                       }
                     }
 
+                    // C9 (D9): fila
+                    var $na_fila {
+                      value = $ids_na_fila|in:$espaco.id
+                    }
+
+                    var $pode_entrar_fila {
+                      value = false
+                    }
+
+                    conditional {
+                      if ($ocupado && $validacao.dentro_das_regras && !$deslocavel && !$na_fila) {
+                        var $reserva_propria {
+                          value = $sobrepostas_todas|some:($$.espaco_id == $espaco.id && $$.usuario_id == $ator.id)
+                        }
+
+                        var $antecedencia_min {
+                          value = $tipo.antecedencia_min_minutos|first_notnull:0
+                        }
+
+                        function.run corte_fila {
+                          input = {
+                            inicio                  : $inicio
+                            prazo_fila_minutos       : $prazo_fila
+                            antecedencia_min_minutos : $antecedencia_min
+                            tempo_minimo_fila_minutos: $tempo_minimo_fila
+                          }
+                        } as $instantes
+
+                        var $fechamento {
+                          value = $instantes.fechamento
+                        }
+
+                        conditional {
+                          if (!$reserva_propria && $agora < $fechamento) {
+                            var.update $pode_entrar_fila {
+                              value = true
+                            }
+                          }
+                        }
+                      }
+                    }
+
                     var.update $item {
                       value = $item
                         |set:"dentro_das_regras":$validacao.dentro_das_regras
@@ -337,6 +439,8 @@ query buscar_espacos verb=POST {
                         |set:"ocupado":$ocupado
                         |set:"deslocavel":$deslocavel
                         |set:"deslocaria":$deslocaria
+                        |set:"na_fila":$na_fila
+                        |set:"pode_entrar_fila":$pode_entrar_fila
                     }
                   }
                 }

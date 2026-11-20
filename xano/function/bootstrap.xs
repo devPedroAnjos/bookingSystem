@@ -62,7 +62,10 @@ function bootstrap {
         granularidade_minutos     : 10,
         dias_funcionamento        : [1, 2, 3, 4, 5],
         prazo_cancelamento_minutos: 120,
-        prazo_deslocamento_minutos: 120
+        prazo_deslocamento_minutos: 120,
+        prazo_fila_minutos        : 120,
+        prazo_confirmacao_fila_minutos: 720,
+        tempo_minimo_fila_minutos : 30
       }
     }
   
@@ -85,6 +88,9 @@ function bootstrap {
                 dias_funcionamento        : $parametros_padrao.dias_funcionamento
                 prazo_cancelamento_minutos: $parametros_padrao.prazo_cancelamento_minutos
                 prazo_deslocamento_minutos: $parametros_padrao.prazo_deslocamento_minutos
+                prazo_fila_minutos        : $parametros_padrao.prazo_fila_minutos
+                prazo_confirmacao_fila_minutos: $parametros_padrao.prazo_confirmacao_fila_minutos
+                tempo_minimo_fila_minutos : $parametros_padrao.tempo_minimo_fila_minutos
               }
             } as $configuracao_criada
           

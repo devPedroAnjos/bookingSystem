@@ -4,6 +4,7 @@
 // O prazo é lido direto de configuracao_geral (D12), com a precondição do bootstrap.
 // C7: aplicar_vencimentos antes da transação (design D3); a pendente vencida chega EXPIRADA e
 // recebe "não está ativa". A checagem de prazo cobre a corrida entre as duas transações.
+// C9 (design D5): a vaga liberada vai para a fila na mesma transação (processar_fila no fim).
 // Cancela uma reserva própria dentro do prazo, dentro da trava de governança
 query cancelar_reserva verb=POST {
   api_group = "reservas"
@@ -116,6 +117,11 @@ query cancelar_reserva verb=POST {
             dados_depois: $dados_depois
           }
         } as $registro_auditoria
+
+        // A vaga liberada é retida para a fila sem janela para reserva direta (C9, D5)
+        function.run processar_fila {
+          input = {agora: $agora}
+        } as $fila
       }
     }
   }

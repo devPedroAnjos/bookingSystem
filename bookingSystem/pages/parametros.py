@@ -22,6 +22,18 @@ ROTULOS_LIMITES = {
         "Prazo para deslocar por prioridade, em minutos antes do início "
         "(da nova reserva e de cada deslocada)"
     ),
+    "prazo_fila_minutos": (
+        "Corte da fila de espera, em minutos antes do início (nenhuma "
+        "confirmação passa dele)"
+    ),
+    "prazo_confirmacao_fila_minutos": (
+        "Prazo para confirmar a vaga da fila, em minutos a partir do aviso "
+        "(limitado ao corte)"
+    ),
+    "tempo_minimo_fila_minutos": (
+        "Tempo mínimo útil da fila, em minutos antes do corte (a fila fecha "
+        "nesse ponto)"
+    ),
 }
 
 NOMES_DIAS = {
