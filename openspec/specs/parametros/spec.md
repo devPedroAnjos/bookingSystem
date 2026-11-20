@@ -15,9 +15,12 @@ Somente o admin principal DEVE (MUST) poder consultar e editar estes parâmetros
 - granularidade de horário, em minutos (padrão: 10);
 - dias de funcionamento (padrão: segunda a sexta);
 - prazo de cancelamento sem penalidade, em minutos antes do início da reserva (padrão: 120);
-- prazo para deslocar por prioridade, em minutos antes do início da nova reserva e de cada deslocada (padrão: 120).
+- prazo para deslocar por prioridade, em minutos antes do início da nova reserva e de cada deslocada (padrão: 120);
+- corte da fila de espera, em minutos antes do início (padrão: 120);
+- prazo para confirmar a vaga retida pela fila, em minutos a partir do aviso (padrão: 720);
+- tempo mínimo útil da fila, em minutos antes do corte, que define o fechamento da fila (padrão: 30).
 
-Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar essa área. Os valores padrão da granularidade, dos dias de funcionamento, do prazo de cancelamento e do prazo para deslocar são gravados pela carga inicial quando ainda não existem.
+Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar essa área. Os valores padrão da granularidade, dos dias de funcionamento, do prazo de cancelamento, do prazo para deslocar e dos três parâmetros da fila são gravados pela carga inicial quando ainda não existem.
 
 #### Scenario: Principal altera um limite
 - **WHEN** o principal altera o máximo de coordenadores por unidade de 4 para 5
@@ -40,12 +43,26 @@ Admins secundários e demais papéis NÃO DEVEM (MUST NOT) consultar nem editar 
 - **WHEN** a carga inicial é executada duas vezes
 - **THEN** a primeira grava 120 minutos e a segunda não altera nada
 
+#### Scenario: Principal altera o corte da fila
+- **WHEN** o principal altera o corte da fila de 120 para 180 minutos
+- **THEN** o corte das filas passa a ser 180 minutos antes do início, salvo antecedência mínima maior do tipo, e o fechamento passa a ser o corte menos o tempo mínimo útil (capability `fila-espera`)
+
+#### Scenario: Principal altera o prazo para confirmar
+- **WHEN** o principal altera o prazo para confirmar de 720 para 360 minutos
+- **THEN** as próximas vagas retidas têm até 360 minutos para ser confirmadas, limitados ao corte (capability `fila-espera`)
+- **AND** os prazos das vagas já retidas não mudam
+
+#### Scenario: Carga inicial dos parâmetros da fila
+- **GIVEN** a configuração ainda não tem o corte, o prazo para confirmar nem o tempo mínimo útil da fila
+- **WHEN** a carga inicial é executada duas vezes
+- **THEN** a primeira grava 120, 720 e 30 minutos e a segunda não altera nada
+
 #### Scenario: Secundário tenta editar
 - **WHEN** um admin secundário tenta editar os parâmetros
 - **THEN** o sistema responde com acesso negado e nada muda
 
 ### Requirement: Validação dos parâmetros
-Cada limite, inclusive o prazo de cancelamento e o prazo para deslocar, DEVE (MUST) ser um número inteiro maior ou igual a 1. A lista de domínios DEVE ter ao menos um domínio, sem `@`, sem espaços e sem repetição, gravado em minúsculas. A granularidade DEVE ser um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60) e NÃO DEVE (MUST NOT) ser alterada para um valor do qual algum tipo com regras tenha duração, abertura ou fechamento que não seja múltiplo. Os dias de funcionamento DEVEM ter ao menos um dia, de segunda (1) a domingo (7), sem repetição. Reduzir um limite abaixo da quantidade atual NÃO DEVE remover ninguém: só impede novas entradas. Se qualquer valor for inválido, nada é gravado.
+Cada limite, inclusive o prazo de cancelamento, o prazo para deslocar e os três parâmetros da fila, DEVE (MUST) ser um número inteiro maior ou igual a 1. A lista de domínios DEVE ter ao menos um domínio, sem `@`, sem espaços e sem repetição, gravado em minúsculas. A granularidade DEVE ser um divisor de 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 ou 60) e NÃO DEVE (MUST NOT) ser alterada para um valor do qual algum tipo com regras tenha duração, abertura ou fechamento que não seja múltiplo. Os dias de funcionamento DEVEM ter ao menos um dia, de segunda (1) a domingo (7), sem repetição. Reduzir um limite abaixo da quantidade atual NÃO DEVE remover ninguém: só impede novas entradas. Se qualquer valor for inválido, nada é gravado.
 
 #### Scenario: Limite zero
 - **WHEN** o principal tenta gravar o máximo de admins igual a 0
@@ -57,6 +74,10 @@ Cada limite, inclusive o prazo de cancelamento e o prazo para deslocar, DEVE (MU
 
 #### Scenario: Prazo para deslocar inválido
 - **WHEN** o principal tenta gravar o prazo para deslocar igual a 0
+- **THEN** o sistema recusa indicando o campo inválido e nenhum parâmetro muda
+
+#### Scenario: Parâmetro da fila inválido
+- **WHEN** o principal tenta gravar o corte, o prazo para confirmar ou o tempo mínimo útil da fila igual a 0
 - **THEN** o sistema recusa indicando o campo inválido e nenhum parâmetro muda
 
 #### Scenario: Lista de domínios vazia
@@ -83,7 +104,7 @@ Cada limite, inclusive o prazo de cancelamento e o prazo para deslocar, DEVE (MU
 - **THEN** o sistema recusa informando que é preciso ao menos um dia
 
 ### Requirement: Tela de parâmetros
-O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", com os valores atuais preenchidos, incluindo a granularidade de horário, os dias de funcionamento (um campo por dia da semana), o prazo de cancelamento e o prazo para deslocar por prioridade, e mostrar a mensagem da API depois de salvar.
+O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", com os valores atuais preenchidos, incluindo a granularidade de horário, os dias de funcionamento (um campo por dia da semana), o prazo de cancelamento, o prazo para deslocar por prioridade e os três parâmetros da fila de espera (corte, prazo para confirmar e tempo mínimo útil), e mostrar a mensagem da API depois de salvar.
 
 #### Scenario: Salvar pela página
 - **WHEN** o principal altera o máximo de pedidos de cadastro para 4 e salva
@@ -101,3 +122,7 @@ O frontend DEVE (MUST) oferecer ao admin principal uma página "Parâmetros", co
 #### Scenario: Prazo para deslocar pela página
 - **WHEN** o principal abre a página "Parâmetros"
 - **THEN** vê o prazo para deslocar por prioridade atual, em minutos, e pode alterá-lo
+
+#### Scenario: Parâmetros da fila pela página
+- **WHEN** o principal abre a página "Parâmetros"
+- **THEN** vê o corte, o prazo para confirmar e o tempo mínimo útil da fila de espera atuais, em minutos, e pode alterá-los
