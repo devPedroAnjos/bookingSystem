@@ -128,9 +128,16 @@ query buscar_espacos verb=POST {
         }
 
         // Uma consulta para todos os espaços: reservas ativas sobrepostas ao intervalo (D7, D13).
-        // Ocupam a confirmada e a pendente que ainda não começou (C7, D2); a busca não grava nada.
+        // Ocupam a pendente que ainda não começou (C7, D2) e a confirmada que não terminou nem
+        // ficou sem comparecimento (C10, D2); a busca não grava nada.
+        function.run obter_configuracao_comparecimento as $comparecimento
+
+        var $inicio_minimo {
+          value = $agora - $comparecimento.depois_ms
+        }
+
         db.query reserva {
-          where = ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde))) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           return = {type: "list"}
         } as $sobrepostas
 

@@ -4,9 +4,12 @@
 // (um precondition dentro da transação principal desfaria tudo). Falha da faxina não bloqueia a
 // operação: o erro vai para o log, e a correção vem da situação efetiva (D2). Se o plano do Xano
 // passar a ter tarefas agendadas, uma task chama esta mesma função (D4).
+// C10 (D3): com usuario_id, os vencimentos de comparecimento desse usuário são gravados por inteiro
+// antes do lote, e ficam gravados mesmo que a operação principal seja recusada depois.
 // Abre a transação, pega a trava e grava os vencimentos; devolve quantos gravou
 function aplicar_vencimentos {
   input {
+    int? usuario_id?
   }
 
   stack {
@@ -25,7 +28,7 @@ function aplicar_vencimentos {
             }
 
             function.run processar_vencimentos {
-              input = {agora: $agora}
+              input = {agora: $agora, usuario_id: $input.usuario_id}
             } as $processadas
 
             var.update $quantidade {

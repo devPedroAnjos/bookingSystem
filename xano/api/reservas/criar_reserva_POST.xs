@@ -48,7 +48,10 @@ query criar_reserva verb=POST {
     }
 
     // Faxina de vencimentos em transação própria (C7, design D3), que também processa a fila (C9)
-    function.run aplicar_vencimentos as $vencimentos
+    // e grava por inteiro os vencimentos de comparecimento do usuário (C10, D3)
+    function.run aplicar_vencimentos {
+      input = {usuario_id: $auth.id}
+    } as $vencimentos
 
     // Declaradas fora da transação, como $unidade_criada_id em unidades/criar
     var $reserva_id {
@@ -113,7 +116,20 @@ query criar_reserva verb=POST {
           value = $pedido.regra
         }
 
-        // 6. (Ponto de extensão C10: recusar quem tem penalidade ativa.)
+        // 6. Penalidade em vigor (C10, D3 e D6): as faltas do usuário são gravadas por inteiro e em
+        // ordem antes da verificação, mesmo que a faxina tenha falhado
+        function.run processar_vencimentos_usuario {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $vencimentos_usuario
+
+        function.run penalidade_em_vigor {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $penalidade
+
+        precondition (!$penalidade.em_vigor) {
+          error_type = "inputerror"
+          error = "Você está com penalidade até " ~ $penalidade.ate_texto ~ ". Até lá, não é possível criar reservas nem entrar em filas."
+        }
 
         // 7. Limite de reservas ativas no tipo atual do espaço (D5)
         function.run exigir_limite_ativas {
@@ -141,8 +157,15 @@ query criar_reserva verb=POST {
           error = "Horário ocupado: já existe uma reserva neste espaço nesse intervalo."
         }
 
+        // Predicado de ocupação da C10 (D2): a confirmada sem check-in depois da janela não ocupa
+        function.run obter_configuracao_comparecimento as $comparecimento
+
+        var $inicio_minimo {
+          value = $agora - $comparecimento.depois_ms
+        }
+
         db.query reserva {
-          where = $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = $db.reserva.espaco_id == $espaco.id && (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde))) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           sort = {inicio: "asc"}
           return = {type: "list"}
         } as $conflitantes

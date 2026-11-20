@@ -186,24 +186,27 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
                    └──► NAO_COMPARECEU (sem check-in na janela)
 ```
 
-- **Ativas** (ocupam o horário): `PENDENTE` que ainda não começou e `CONFIRMADA`.
+- **Ativas** (ocupam o horário): `PENDENTE` que ainda não começou e `CONFIRMADA` não vencida pela situação efetiva (nem `NAO_COMPARECEU` nem `CONCLUIDA`).
 - **Finais:** `CONCLUIDA`, `NAO_COMPARECEU`, `CANCELADA`, `RECUSADA`, `EXPIRADA`.
-- **Situação efetiva:** a `PENDENTE` cujo início chegou sem decisão já é `EXPIRADA`, mesmo antes de a expiração ser gravada. A gravação acontece na próxima operação que cria, cancela ou decide reservas, porque o plano gratuito do Xano não tem tarefas agendadas. Todas as consultas e verificações usam a situação efetiva. As ações de gestão (desativar, mover, trocar o tipo) continuam cancelando a pendente já iniciada.
+- **Situação efetiva:** a `PENDENTE` cujo início chegou sem decisão já é `EXPIRADA`, a `CONFIRMADA` sem check-in cuja janela de check-in fechou já é `NAO_COMPARECEU` e a `CONFIRMADA` com check-in cujo fim chegou já é `CONCLUIDA`, mesmo antes de a gravação acontecer. A `NAO_COMPARECEU` deixa de ocupar o horário a partir do fechamento da janela. As reservas que começaram antes de a regra de comparecimento entrar em uso (`configuracao_geral.comparecimento_desde`) continuam `CONFIRMADA`, sem falta. A gravação acontece na próxima operação que cria, cancela ou decide reservas, porque o plano gratuito do Xano não tem tarefas agendadas. Todas as consultas e verificações usam a situação efetiva. As ações de gestão (desativar, mover, trocar o tipo) continuam cancelando a pendente já iniciada.
 
 **Regras estruturais:**
 - `inicio < fim`, mesmo dia, num dia de funcionamento, dentro do horário do tipo, em múltiplos da granularidade (§2.18), respeitando duração mínima e máxima e a antecedência mínima e máxima do tipo, avaliados em America/Sao_Paulo.
 - O usuário reserva só para si. A reserva nasce `PENDENTE` quando a RegraPapel exige aprovação e `CONFIRMADA` caso contrário. As regras valem no momento da criação: mudá-las depois não altera reservas existentes.
-- Um usuário tem no máximo `max_reservas_ativas_usuario` reservas `PENDENTE` que ainda não começaram ou `CONFIRMADA` que ainda não terminaram em espaços do mesmo tipo.
+- Um usuário tem no máximo `max_reservas_ativas_usuario` reservas `PENDENTE` que ainda não começaram ou `CONFIRMADA` que ainda não terminaram e não são `NAO_COMPARECEU` pela situação efetiva, em espaços do mesmo tipo.
 - **Não pode haver duas reservas ativas sobrepostas no mesmo espaço** (`a.inicio < b.fim` e `b.inicio < a.fim`); reservas que só se encostam não conflitam. A verificação e a gravação são atômicas.
-- O próprio usuário cancela uma reserva ativa sem falta até o prazo de cancelamento (§2.18) antes do início, inclusive exatamente no limite (motivo `USUARIO`).
+- O próprio usuário cancela uma reserva ativa só antes do início e sem check-in feito.
+  - **Sem falta (motivo `USUARIO`):** até o prazo de cancelamento (§2.18) antes do início, inclusive exatamente no limite. A `PENDENTE` é cancelada assim a qualquer momento antes do início.
+  - **Tardio (motivo `USUARIO_TARDIO`, com falta):** a `CONFIRMADA` com menos que o prazo até o início. Só é aceito com a confirmação explícita do usuário; sem ela, a reserva não muda.
 - Inativar a conta cancela as reservas dela que ainda não começaram (motivo `CONTA_INATIVADA`); a reserva em andamento continua.
-- Desativar o espaço, o tipo ou a unidade, trocar o tipo do espaço ou movê-lo de unidade é recusado enquanto algum espaço afetado tiver reserva `CONFIRMADA` em andamento. Sem isso, as reservas `PENDENTE` e `CONFIRMADA` dos espaços afetados que ainda não terminaram são canceladas (motivo `ESPACO_INDISPONIVEL`), inclusive a pendente cujo início já passou. Nas desativações, cada reserva cancelada guarda o motivo escolhido na lista de desativação (manutenção ou reforma, problema de infraestrutura, interdição ou risco à segurança, equipamentos ou recursos indisponíveis, mudança de uso, baixa utilização, encerramento das atividades no local ou "Outro" com descrição), que o usuário vê na lista das próprias reservas. Admin e coordenador seguem a mesma regra.
+- Desativar o espaço, o tipo ou a unidade, trocar o tipo do espaço ou movê-lo de unidade é recusado enquanto algum espaço afetado tiver reserva `CONFIRMADA` em andamento. A reserva que já é `NAO_COMPARECEU` (efetiva) não conta como em andamento e não é cancelada. Sem isso, as reservas `PENDENTE` e `CONFIRMADA` dos espaços afetados que ainda não terminaram são canceladas (motivo `ESPACO_INDISPONIVEL`), inclusive a pendente cujo início já passou. Nas desativações, cada reserva cancelada guarda o motivo escolhido na lista de desativação (manutenção ou reforma, problema de infraestrutura, interdição ou risco à segurança, equipamentos ou recursos indisponíveis, mudança de uso, baixa utilização, encerramento das atividades no local ou "Outro" com descrição), que o usuário vê na lista das próprias reservas. Admin e coordenador seguem a mesma regra.
 - Cancelamentos automáticos registram quem executou a ação e não geram falta. Reservas que já terminaram nunca são alteradas por eles, e reativações não restauram reservas.
 - **Decisão da pendente:** só o coordenador que coordena a unidade atual do espaço, ou um admin, aprova ou recusa uma `PENDENTE`, e só antes do início. Ninguém decide a própria reserva. Aprovar não confere de novo as regras, o limite nem o conflito. A recusa exige motivo (até 500 caracteres), que o dono vê. A decisão registra quem decidiu e quando (`decidido_por_id`, `decidido_em`, `motivo_recusa`).
 - **Expiração:** a `PENDENTE` sem decisão até o início expira sem falta. Ela é auditada com ator vazio e com o instante real do vencimento (o início).
 - Não pode sobrepor uma vaga retida pela fila de espera (entrada `NOTIFICADA`), exceto a reserva gerada pela confirmação dessa própria entrada.
 - Não pode sobrepor um bloqueio ativo.
-- Cancelamento com motivo `USUARIO_TARDIO` (depois do prazo de cancelamento, §2.18) ou situação `NAO_COMPARECEU` gera uma **Falta**.
+- Cancelamento com motivo `USUARIO_TARDIO` (só da `CONFIRMADA`, depois do prazo de cancelamento, §2.18) ou situação `NAO_COMPARECEU` gera uma **Falta**.
+- **Check-in:** só o dono, só em `CONFIRMADA`, de `checkin_antes_minutos` antes até `checkin_depois_minutos` depois do início, sem passar do fim, com os dois limites incluídos e os parâmetros vigentes no momento da verificação.
 - **Deslocamento por prioridade:** um pedido que conflita com reservas ativas as desloca quando, ao mesmo tempo:
   - todas têm `nivel_prioridade` (o da criação delas) estritamente menor que o nível do papel atual do solicitante;
   - a nova reserva e cada uma das conflitantes começam a mais de `prazo_deslocamento_minutos` de agora (exatamente o prazo não basta), então uma reserva em andamento nunca é deslocada;
@@ -245,27 +248,31 @@ Pedido de um usuário para ocupar um intervalo exato de um espaço caso ele seja
 - A confirmação gera uma reserva com origem `FILA`, `PENDENTE` se o tipo exige aprovação para o papel, senão `CONFIRMADA`, e passa a entrada para `ATENDIDA`.
 - Desativar, mover ou trocar o tipo do espaço (ou desativar o tipo ou a unidade) e inativar a conta do dono encerram as entradas ativas.
 - Um usuário tem no máximo uma entrada ativa por (espaço, intervalo).
-- Usuário com penalidade ativa não entra na fila.
+- Usuário com penalidade em vigor (§2.13) não entra na fila nem confirma vaga retida. Quando a penalidade nasce em vigor, as entradas ativas dele ficam `ENCERRADA`.
 
 ### 2.12 Falta
 
 Registro de não comparecimento ou de cancelamento tardio.
 
-**Principais informações:** usuário; reserva (única); tipo (`NAO_COMPARECIMENTO`, `CANCELAMENTO_TARDIO`); data; penalidade que ela gerou (se houver).
+**Principais informações:** usuário; reserva (única); tipo (`NAO_COMPARECIMENTO`, `CANCELAMENTO_TARDIO`); instante em que ocorreu (`ocorrida_em`); penalidade que ela gerou (se houver).
 
-**Regra estrutural:** uma reserva gera no máximo uma falta. Uma falta só pode contribuir para uma penalidade.
+**Regras estruturais:**
+- Uma reserva gera no máximo uma falta. Uma falta só pode contribuir para uma penalidade.
+- `ocorrida_em` é o instante real: o fechamento da janela de check-in no não comparecimento e o instante do cancelamento no cancelamento tardio, mesmo que a falta seja gravada depois.
 
 ### 2.13 Penalidade
 
 Impedimento temporário de criar novas reservas e de entrar em filas.
 
-**Principais informações:** usuário; início; fim; situação (`ATIVA`, `CUMPRIDA`, `ANULADA`); quem anulou e quando.
+**Principais informações:** usuário; início; fim; situação (`ATIVA`, `CUMPRIDA`, `ANULADA`); quem anulou, quando e o parecer.
 
 **Regras estruturais:**
-- Gerada quando o usuário acumula **2 faltas em 30 dias** ainda não vinculadas a outra penalidade. Duração: **7 dias**.
-- Faltas cometidas durante uma penalidade ativa contam normalmente. As penalidades de um usuário **nunca se sobrepõem**: se uma nova for gerada durante uma penalidade ativa, ela começa quando a atual termina. Se uma penalidade for anulada, as encadeadas depois dela são antecipadas: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou).
+- Gerada quando o usuário acumula **2 faltas em 30 dias** (inclusive o limite exato) ainda não vinculadas a outra penalidade. Ela vincula todas essas faltas. Duração: **7 dias**.
+- Faltas cometidas durante uma penalidade em vigor contam normalmente. As penalidades de um usuário **nunca se sobrepõem**: se uma nova for gerada durante uma penalidade em vigor, ela começa quando a atual termina. Se uma penalidade for anulada, as encadeadas depois dela são antecipadas: cada uma passa a começar quando teria começado sem a anulada (no mínimo, na data da falta que a gerou) e mantém a duração que tinha.
+- **Em vigor:** `ATIVA` e o instante entre o início, inclusive, e o fim, exclusive. Uma penalidade encadeada que ainda não começou também é `ATIVA`, mas não está em vigor. Quando o fim chega, ela é `CUMPRIDA` (situação efetiva, gravada pelo processamento de vencimentos).
+- Com a penalidade em vigor, o usuário não cria reservas, não entra em filas e não confirma vaga retida. Quando a penalidade nasce em vigor, as entradas ativas dele na fila são encerradas.
 - Não cancela reservas já confirmadas.
-- Só o **admin** anula, registrando o parecer. A contestação pelo usuário (§2.14) ficou fora da v1.
+- Só o **admin** anula, só uma penalidade `ATIVA` (em vigor ou futura), registrando o parecer, que o dono vê sem o nome de quem anulou. Ninguém anula a própria penalidade. As faltas da penalidade anulada continuam vinculadas a ela. A contestação pelo usuário (§2.14) ficou fora da v1.
 
 ### 2.14 Contestação
 
@@ -430,7 +437,7 @@ flowchart LR
 1. Nenhum espaço tem duas ocupações ativas sobrepostas. Ocupam o horário, pela situação efetiva (§2.9): reservas `PENDENTE` que ainda não começaram, reservas `CONFIRMADA` e entradas de fila `NOTIFICADA` (vaga retida).
 2. Nenhuma reserva ativa sobrepõe um bloqueio ativo do mesmo espaço.
 3. Toda reserva respeita as regras do tipo do espaço e a RegraPapel do papel do solicitante **no momento da criação**. Única exceção: ocorrências de série recorrente são isentas da antecedência máxima.
-4. Usuário com penalidade ativa não cria reserva nem entra em fila.
+4. Usuário com penalidade em vigor não cria reserva, não entra em fila nem confirma vaga retida.
 5. Coordenador só age sobre unidades que coordena.
 6. Uma reserva gera no máximo uma falta, uma avaliação e uma reserva-filha via fila.
 7. Registros de reserva, falta, penalidade e auditoria nunca são excluídos fisicamente.
@@ -627,6 +634,7 @@ erDiagram
         timestamp criado_em
         int anulada_por_id FK
         timestamp anulada_em
+        string parecer "obrigatório na anulação; divergência da C10"
     }
     CONTESTACAO {
         int id PK
@@ -689,10 +697,15 @@ erDiagram
         int max_unidades_coordenador
         int max_pedidos_cadastro
         int max_admins
+        timestamp comparecimento_desde "marco técnico da C10, gravado uma vez pelo bootstrap"
     }
 ```
 
 > **Tabela técnica fora do modelo de domínio:** `trava` (`nome` único, `usado_em`) existe só para a exclusão mútua no Xano. Como o Xano não oferece isolamento serializável, operações que contam e depois gravam editam a linha `"governanca"` como primeira instrução da transação. Detalhes no `design.md` da change `coordenacao-unidades`.
+
+> **Campos acrescentados na C10 (`checkin-faltas`, design D1):**
+> - `penalidade.parecer`: exigido pelo §2.13, mas ausente no DER original.
+> - `configuracao_geral.comparecimento_desde`: marco técnico, não editável, a partir do qual a regra de comparecimento vale; reservas que começaram antes dele continuam `CONFIRMADA`, sem falta (decisão 20 da C10).
 
 ### A.1 Restrições de integridade
 

@@ -88,6 +88,9 @@ table reserva {
     int? deslocada_por_reserva_id? {
       table = "reserva"
     }
+
+    // Instante do check-in feito pelo dono (C10, design D1); vazio sem check-in
+    timestamp? check_in_em?
   }
 
   index = [

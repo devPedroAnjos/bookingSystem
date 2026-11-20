@@ -42,6 +42,20 @@ table configuracao_geral {
     int? prazo_confirmacao_fila_minutos?
 
     int? tempo_minimo_fila_minutos?
+
+    // Check-in e penalidades (C10, design D1): janela de check-in em minutos antes e depois do
+    // início, faltas para penalidade, janela das faltas e duração da penalidade em dias.
+    // Preenchidos pelo bootstrap; lidos direto da tabela.
+    int? checkin_antes_minutos?
+
+    int? checkin_depois_minutos?
+    int? faltas_para_penalidade?
+    int? janela_faltas_dias?
+    int? duracao_penalidade_dias?
+
+    // Marco técnico (C10, decisão 20): reservas que começam antes dele seguem a regra anterior,
+    // sem check-in nem falta. Gravado uma vez pelo bootstrap; não é parâmetro editável.
+    timestamp? comparecimento_desde?
   }
 
   index = [{type: "primary", field: [{name: "id"}]}]

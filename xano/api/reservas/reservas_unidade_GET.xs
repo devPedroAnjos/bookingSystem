@@ -3,6 +3,8 @@
 // espaço fora do escopo do coordenador: 403 com a mesma mensagem. A situação segue a regra da
 // situação efetiva (D2): PENDENTE só as que ainda não começaram; EXPIRADA inclui as vencidas
 // ainda não gravadas. Teto técnico de 200 itens, com "limitada". Uma consulta por tabela.
+// C10 (D8): CONFIRMADA sem as vencidas; NAO_COMPARECEU e CONCLUIDA também pela situação efetiva;
+// check_in_em no item.
 // Dos usuários saem só nome e e-mail; no cancelamento por inativação de conta, quem cancelou
 // não é exposto (decisions-log 24).
 // Lista as reservas da unidade para coordenador e admin
@@ -46,7 +48,7 @@ query reservas_unidade verb=GET {
   
     // Texto com split em vez de lista literal: o Xano tira as vírgulas dos literais ao salvar
     var $situacoes_aceitas {
-      value = "PENDENTE,CONFIRMADA,RECUSADA,EXPIRADA,CANCELADA,TODAS"|split:","
+      value = "PENDENTE,CONFIRMADA,CONCLUIDA,NAO_COMPARECEU,RECUSADA,EXPIRADA,CANCELADA,TODAS"|split:","
     }
   
     precondition ($situacoes_aceitas|in:$situacao) {
@@ -183,7 +185,15 @@ query reservas_unidade verb=GET {
     var $agora {
       value = now
     }
-  
+
+    // Janela de check-in e marco do comparecimento (C10, D2), com a precondição do bootstrap
+    function.run obter_configuracao_comparecimento as $configuracao
+
+    // Início mínimo de uma confirmada sem check-in ainda dentro da janela
+    var $inicio_limite {
+      value = $agora - $configuracao.depois_ms
+    }
+
     // Uma consulta por situação: a regra da situação efetiva muda a forma do filtro (D2).
     // per_page 201 para saber se havia mais que o teto de 200. Escopo vazio (coordenador sem
     // unidades ou filtro sem espaços) não consulta: nunca um "in" com lista vazia.
@@ -228,6 +238,52 @@ query reservas_unidade verb=GET {
         }
       }
     
+      // C10 (D2): as três situações abaixo seguem a situação efetiva, gravada ou não
+      elseif ($situacao == "CONFIRMADA") {
+        db.query reserva {
+          where = $db.reserva.espaco_id in $ids_espacos && $db.reserva.status == "CONFIRMADA" && ($db.reserva.inicio < $configuracao.comparecimento_desde || ($db.reserva.check_in_em != null && $db.reserva.fim > $agora) || ($db.reserva.check_in_em == null && $db.reserva.inicio >= $inicio_limite && $db.reserva.fim >= $agora)) && $db.reserva.inicio >=? $periodo_inicio && $db.reserva.inicio <? $periodo_fim
+          sort = {inicio: "desc"}
+          return = {
+            type  : "list"
+            paging: {page: 1, per_page: 201, metadata: false}
+          }
+        } as $confirmadas
+
+        var.update $encontradas {
+          value = $confirmadas
+        }
+      }
+
+      elseif ($situacao == "NAO_COMPARECEU") {
+        db.query reserva {
+          where = $db.reserva.espaco_id in $ids_espacos && ($db.reserva.status == "NAO_COMPARECEU" || ($db.reserva.status == "CONFIRMADA" && $db.reserva.inicio >= $configuracao.comparecimento_desde && $db.reserva.check_in_em == null && ($db.reserva.inicio < $inicio_limite || $db.reserva.fim < $agora))) && $db.reserva.inicio >=? $periodo_inicio && $db.reserva.inicio <? $periodo_fim
+          sort = {inicio: "desc"}
+          return = {
+            type  : "list"
+            paging: {page: 1, per_page: 201, metadata: false}
+          }
+        } as $nao_compareceram
+
+        var.update $encontradas {
+          value = $nao_compareceram
+        }
+      }
+
+      elseif ($situacao == "CONCLUIDA") {
+        db.query reserva {
+          where = $db.reserva.espaco_id in $ids_espacos && ($db.reserva.status == "CONCLUIDA" || ($db.reserva.status == "CONFIRMADA" && $db.reserva.inicio >= $configuracao.comparecimento_desde && $db.reserva.check_in_em != null && $db.reserva.fim <= $agora)) && $db.reserva.inicio >=? $periodo_inicio && $db.reserva.inicio <? $periodo_fim
+          sort = {inicio: "desc"}
+          return = {
+            type  : "list"
+            paging: {page: 1, per_page: 201, metadata: false}
+          }
+        } as $concluidas
+
+        var.update $encontradas {
+          value = $concluidas
+        }
+      }
+
       elseif ($situacao == "TODAS") {
         db.query reserva {
           where = $db.reserva.espaco_id in $ids_espacos && $db.reserva.inicio >=? $periodo_inicio && $db.reserva.inicio <? $periodo_fim
@@ -343,9 +399,13 @@ query reservas_unidade verb=GET {
       
         function.run situacao_efetiva {
           input = {
-            status: $reserva.status
-            inicio: $reserva.inicio
-            agora : $agora
+            status                : $reserva.status
+            inicio                : $reserva.inicio
+            agora                 : $agora
+            fim                   : $reserva.fim
+            check_in_em           : $reserva.check_in_em
+            checkin_depois_minutos: $configuracao.checkin_depois_minutos
+            comparecimento_desde  : $configuracao.comparecimento_desde
           }
         } as $situacao_item
       
@@ -400,6 +460,19 @@ query reservas_unidade verb=GET {
           }
         }
       
+        // Check-in (C10, D8), em São Paulo
+        var $check_in_texto {
+          value = null
+        }
+
+        conditional {
+          if (!($reserva.check_in_em|is_null)) {
+            var.update $check_in_texto {
+              value = $reserva.check_in_em|format_timestamp:"d/m/Y H:i":"America/Sao_Paulo"
+            }
+          }
+        }
+
         var $dono_item {
           value = {}
             |set:"nome":$dono.nome
@@ -447,6 +520,7 @@ query reservas_unidade verb=GET {
             |set:"motivo_detalhe":$reserva.motivo_detalhe
             |set:"motivo_descricao":$reserva.motivo_descricao
             |set:"cancelado_por":$cancelado_por
+            |set:"check_in_em":$check_in_texto
         }
       
         var.update $lista {

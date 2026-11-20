@@ -65,7 +65,12 @@ function bootstrap {
         prazo_deslocamento_minutos: 120,
         prazo_fila_minutos        : 120,
         prazo_confirmacao_fila_minutos: 720,
-        tempo_minimo_fila_minutos : 30
+        tempo_minimo_fila_minutos : 30,
+        checkin_antes_minutos     : 15,
+        checkin_depois_minutos    : 15,
+        faltas_para_penalidade    : 2,
+        janela_faltas_dias        : 30,
+        duracao_penalidade_dias   : 7
       }
     }
   
@@ -91,6 +96,12 @@ function bootstrap {
                 prazo_fila_minutos        : $parametros_padrao.prazo_fila_minutos
                 prazo_confirmacao_fila_minutos: $parametros_padrao.prazo_confirmacao_fila_minutos
                 tempo_minimo_fila_minutos : $parametros_padrao.tempo_minimo_fila_minutos
+                checkin_antes_minutos     : $parametros_padrao.checkin_antes_minutos
+                checkin_depois_minutos    : $parametros_padrao.checkin_depois_minutos
+                faltas_para_penalidade    : $parametros_padrao.faltas_para_penalidade
+                janela_faltas_dias        : $parametros_padrao.janela_faltas_dias
+                duracao_penalidade_dias   : $parametros_padrao.duracao_penalidade_dias
+                comparecimento_desde      : now
               }
             } as $configuracao_criada
           
@@ -122,7 +133,16 @@ function bootstrap {
                 }
               }
             }
-          
+
+            // Marco técnico da C10 (design D1): gravado uma única vez e nunca sobrescrito
+            conditional {
+              if ($configuracao.comparecimento_desde|is_null) {
+                var.update $ajustes {
+                  value = $ajustes|set:"comparecimento_desde":now
+                }
+              }
+            }
+
             conditional {
               if (($ajustes|keys|count) > 0) {
                 db.patch configuracao_geral {

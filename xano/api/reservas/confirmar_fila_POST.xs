@@ -14,8 +14,10 @@ query confirmar_fila verb=POST {
   }
 
   stack {
-    // Faxina de vencimentos e da fila em transação própria (C7, D3; C9, D5)
-    function.run aplicar_vencimentos as $vencimentos
+    // Faxina de vencimentos e da fila em transação própria (C7, D3; C9, D5), com o usuário (C10, D3)
+    function.run aplicar_vencimentos {
+      input = {usuario_id: $auth.id}
+    } as $vencimentos
   
     var $reserva_id {
       value = null
@@ -95,7 +97,20 @@ query confirmar_fila verb=POST {
           }
         } as $pedido
       
-        // (Ponto de extensão C10: recusar quem tem penalidade ativa.)
+        // Penalidade em vigor (C10, D3, D6 e D7): segunda barreira, depois do encerramento das
+        // entradas quando a penalidade nasce em vigor
+        function.run processar_vencimentos_usuario {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $vencimentos_usuario
+
+        function.run penalidade_em_vigor {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $penalidade
+
+        precondition (!$penalidade.em_vigor) {
+          error_type = "inputerror"
+          error = "Você está com penalidade até " ~ $penalidade.ate_texto ~ ". Até lá, não é possível confirmar a vaga."
+        }
       
         function.run exigir_limite_ativas {
           input = {
@@ -106,9 +121,16 @@ query confirmar_fila verb=POST {
           }
         } as $limite_ok
       
-        // 5. Conferência defensiva: pela invariante, nenhuma reserva ocupa a vaga retida
+        // 5. Conferência defensiva: pela invariante, nenhuma reserva ocupa a vaga retida. Predicado
+        // de ocupação da C10 (D2)
+        function.run obter_configuracao_comparecimento as $comparecimento
+
+        var $inicio_minimo {
+          value = $agora - $comparecimento.depois_ms
+        }
+
         db.query reserva {
-          where = $db.reserva.espaco_id == $entrada.espaco_id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $entrada.fim && $db.reserva.fim > $entrada.inicio
+          where = $db.reserva.espaco_id == $entrada.espaco_id && (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde))) && $db.reserva.inicio < $entrada.fim && $db.reserva.fim > $entrada.inicio
           return = {type: "exists"}
         } as $ocupado
       

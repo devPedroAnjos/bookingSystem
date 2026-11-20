@@ -4,6 +4,7 @@ import reflex as rx
 
 from bookingSystem.pages.componentes import dialogo, mensagem
 from bookingSystem.pages.layout import layout_autenticado
+from bookingSystem.state.faltas_state import FaltasState
 from bookingSystem.state.fila_state import CONFIRMAR, DESISTIR, FilaState
 from bookingSystem.state.reservas_state import ReservasState
 
@@ -16,6 +17,8 @@ CORES_FILA = {
 CORES_SITUACAO = {
     "CONFIRMADA": "green",
     "PENDENTE": "orange",
+    "CONCLUIDA": "teal",
+    "NAO_COMPARECEU": "red",
     "CANCELADA": "gray",
     "RECUSADA": "red",
 }
@@ -32,7 +35,44 @@ def situacao(reserva: rx.Var[dict[str, str]]) -> rx.Component:
             ),
         ),
         rx.cond(reserva["motivo"] != "", rx.text(reserva["motivo"], size="1")),
+        rx.cond(
+            reserva["check_in"] != "",
+            rx.text("Check-in às " + reserva["check_in"], size="1"),
+        ),
+        rx.cond(
+            reserva["falta"] != "",
+            rx.badge("Falta: " + reserva["falta"], color_scheme="red", variant="soft"),
+        ),
+        rx.cond(
+            (reserva["status"] == "CONFIRMADA") & (reserva["check_in"] == ""),
+            rx.text(reserva["janela"], size="1", color_scheme="gray"),
+        ),
         spacing="1",
+    )
+
+
+def acoes(reserva: rx.Var[dict[str, str]]) -> rx.Component:
+    """Fazer check-in (durante a janela) e Cancelar (antes do início, sem check-in)."""
+    return rx.hstack(
+        rx.cond(
+            reserva["checkin_possivel"] == "sim",
+            rx.button(
+                "Fazer check-in",
+                size="1",
+                on_click=ReservasState.fazer_checkin(reserva["id"]),
+            ),
+        ),
+        rx.cond(
+            reserva["pode_cancelar"] == "sim",
+            rx.button(
+                "Cancelar",
+                size="1",
+                color_scheme="red",
+                variant="soft",
+                on_click=ReservasState.abrir_cancelar(reserva),
+            ),
+        ),
+        spacing="2",
     )
 
 
@@ -46,20 +86,7 @@ def linha(reserva: rx.Var[dict[str, str]], com_cancelar: bool) -> rx.Component:
         ),
         rx.table.cell(reserva["unidade"]),
         rx.table.cell(situacao(reserva)),
-        rx.table.cell(
-            rx.cond(
-                reserva["pode_cancelar"] == "sim",
-                rx.button(
-                    "Cancelar",
-                    size="1",
-                    color_scheme="red",
-                    variant="soft",
-                    on_click=ReservasState.abrir_cancelar(reserva),
-                ),
-            )
-            if com_cancelar
-            else rx.fragment()
-        ),
+        rx.table.cell(acoes(reserva) if com_cancelar else rx.fragment()),
     )
 
 
@@ -103,9 +130,116 @@ def dialogo_cancelar() -> rx.Component:
             size="2",
         ),
         rx.text("O horário volta a ficar livre para outras pessoas.", size="2"),
+        rx.cond(
+            reserva["gera_falta"] == "sim",
+            rx.callout(
+                "Faltam menos de "
+                + ReservasState.prazo_minutos.to_string()
+                + " minutos para o início: este cancelamento gera uma falta.",
+                color_scheme="red",
+                width="100%",
+            ),
+        ),
         mensagem(ReservasState.erro_dialogo, "red"),
-        botao="Cancelar a reserva",
+        botao=rx.cond(
+            reserva["gera_falta"] == "sim",
+            "Cancelar e aceitar a falta",
+            "Cancelar a reserva",
+        ),
         limpar_ao_enviar=False,
+    )
+
+
+# ---------- Faltas e penalidades (C10, spec penalidades) ----------
+
+
+def tabela_faltas() -> rx.Component:
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                *[
+                    rx.table.column_header_cell(titulo)
+                    for titulo in ("Quando", "Tipo", "Reserva", "Penalidade")
+                ]
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                FaltasState.faltas,
+                lambda falta: rx.table.row(
+                    rx.table.cell(falta["ocorrida_em"]),
+                    rx.table.cell(falta["tipo"]),
+                    rx.table.cell(falta["reserva"]),
+                    rx.table.cell(rx.cond(falta["penalidade"] == "sim", "Gerou", "—")),
+                ),
+            )
+        ),
+        width="100%",
+    )
+
+
+def tabela_penalidades() -> rx.Component:
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                *[
+                    rx.table.column_header_cell(titulo)
+                    for titulo in ("Período", "Situação", "Parecer da anulação")
+                ]
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                FaltasState.penalidades,
+                lambda penalidade: rx.table.row(
+                    rx.table.cell(penalidade["periodo"]),
+                    rx.table.cell(rx.badge(penalidade["situacao"])),
+                    rx.table.cell(penalidade["parecer"]),
+                ),
+            )
+        ),
+        width="100%",
+    )
+
+
+def secao_faltas() -> rx.Component:
+    return rx.vstack(
+        rx.heading("Faltas e penalidades", size="4"),
+        mensagem(FaltasState.mensagem_erro, "red"),
+        rx.cond(
+            FaltasState.em_vigor,
+            rx.callout(
+                "Você está com penalidade até "
+                + FaltasState.ate
+                + ". Até lá, não é possível criar reservas nem entrar em filas.",
+                color_scheme="red",
+                width="100%",
+            ),
+        ),
+        # Sem o carregamento terminado, "sem faltas" seria uma afirmação falsa
+        rx.cond(
+            ~FaltasState.carregou,
+            rx.spinner(),
+            rx.cond(
+                (FaltasState.faltas.length() == 0)
+                & (FaltasState.penalidades.length() == 0),
+                rx.text(
+                    "Você não tem faltas nem penalidades.",
+                    size="2",
+                    color_scheme="gray",
+                ),
+                rx.vstack(
+                    rx.cond(FaltasState.faltas.length() > 0, tabela_faltas()),
+                    rx.cond(
+                        FaltasState.penalidades.length() > 0, tabela_penalidades()
+                    ),
+                    spacing="3",
+                    width="100%",
+                ),
+            ),
+        ),
+        spacing="3",
+        width="100%",
     )
 
 
@@ -263,6 +397,7 @@ def minhas_reservas() -> rx.Component:
             rx.vstack(
                 rx.heading("Próximas", size="4"),
                 tabela(ReservasState.proximas, True, "Nenhuma reserva próxima."),
+                secao_faltas(),
                 secao_fila(),
                 rx.heading("Histórico", size="4"),
                 tabela(ReservasState.historico, False, "Nenhuma reserva no histórico."),

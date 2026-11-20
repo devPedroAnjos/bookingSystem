@@ -14,6 +14,7 @@ from bookingSystem.pages.inicio import inicio
 from bookingSystem.pages.login import login
 from bookingSystem.pages.minhas_reservas import minhas_reservas
 from bookingSystem.pages.parametros import parametros
+from bookingSystem.pages.penalidades import penalidades
 from bookingSystem.pages.recursos import recursos
 from bookingSystem.pages.reservas_unidade import reservas_unidade
 from bookingSystem.pages.tipos_espaco import tipos_espaco
@@ -30,8 +31,10 @@ from bookingSystem.state.auth_state import (
 from bookingSystem.state.busca_state import BuscaState
 from bookingSystem.state.contas_state import ContasState
 from bookingSystem.state.espacos_state import EspacosState
+from bookingSystem.state.faltas_state import FaltasState
 from bookingSystem.state.fila_state import FilaState
 from bookingSystem.state.parametros_state import ParametrosState
+from bookingSystem.state.penalidades_state import PenalidadesState
 from bookingSystem.state.recursos_state import RecursosState
 from bookingSystem.state.reservas_state import ReservasState
 from bookingSystem.state.reservas_unidade_state import ReservasUnidadeState
@@ -44,13 +47,13 @@ app.add_page(
     login,
     route=ROTA_LOGIN,
     title="Entrar | BookingSystem",
-    on_load=[AuthState.abrir_formulario, FilaState.limpar],
+    on_load=[AuthState.abrir_formulario, FilaState.limpar, FaltasState.limpar],
 )
 app.add_page(
     cadastro,
     route="/cadastro",
     title="Criar conta | BookingSystem",
-    on_load=[AuthState.abrir_formulario, FilaState.limpar],
+    on_load=[AuthState.abrir_formulario, FilaState.limpar, FaltasState.limpar],
 )
 app.add_page(
     inicio,
@@ -68,7 +71,12 @@ app.add_page(
     minhas_reservas,
     route="/minhas-reservas",
     title="Minhas reservas | BookingSystem",
-    on_load=[AuthState.verificar_sessao, ReservasState.abrir, FilaState.abrir],
+    on_load=[
+        AuthState.verificar_sessao,
+        ReservasState.abrir,
+        FaltasState.abrir,
+        FilaState.abrir,
+    ],
 )
 app.add_page(
     aprovacoes,
@@ -111,6 +119,12 @@ app.add_page(
     route="/recursos",
     title="Recursos | BookingSystem",
     on_load=[AuthState.exigir_admin, RecursosState.abrir, FilaState.carregar],
+)
+app.add_page(
+    penalidades,
+    route="/penalidades",
+    title="Penalidades | BookingSystem",
+    on_load=[AuthState.exigir_admin, PenalidadesState.abrir, FilaState.carregar],
 )
 app.add_page(
     trocar_senha,
