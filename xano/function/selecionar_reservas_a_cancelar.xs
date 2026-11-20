@@ -4,6 +4,8 @@
 // Modo "conta" (usuario_id): PENDENTE ou CONFIRMADA que ainda não começaram; a em andamento continua.
 // Modo "espaco" (espacos_ids): PENDENTE ou CONFIRMADA que ainda não terminaram, exceto as
 // CONFIRMADA em andamento, que impedem a ação; devolve quantas são e o maior fim entre elas.
+// C10 (D2): a NAO_COMPARECEU efetiva não está em andamento e não é cancelada. A reserva com check-in
+// que ainda não começou é cancelada como qualquer outra (cancelamento automático, sem falta).
 // Devolve as reservas a cancelar, a quantidade em andamento e o fim da última em andamento
 function selecionar_reservas_a_cancelar {
   input {
@@ -61,13 +63,48 @@ function selecionar_reservas_a_cancelar {
               return = {type: "list"}
             } as $dos_espacos
 
-            var.update $em_andamento {
-              value = $dos_espacos|filter:($$.status == "CONFIRMADA" && $$.inicio <= $agora)
-            }
+            // C10 (D2): a confirmada sem check-in cuja janela fechou é NAO_COMPARECEU pela situação
+            // efetiva; ela não está em andamento e não é cancelada (a falta continua valendo)
+            function.run obter_configuracao_comparecimento as $comparecimento
 
-            // Pendente já iniciada não impede a ação e é cancelada junto (D10)
-            var.update $reservas {
-              value = $dos_espacos|filter:($$.status != "CONFIRMADA" || $$.inicio > $agora)
+            foreach ($dos_espacos) {
+              each as $reserva {
+                var $sem_comparecimento {
+                  value = false
+                }
+
+                conditional {
+                  if ($reserva.status == "CONFIRMADA" && $reserva.inicio <= $agora && $reserva.inicio >= $comparecimento.comparecimento_desde && ($reserva.check_in_em|is_null)) {
+                    function.run fechamento_checkin {
+                      input = {inicio: $reserva.inicio, fim: $reserva.fim, depois_ms: $comparecimento.depois_ms}
+                    } as $fechamento
+
+                    conditional {
+                      if ($agora > $fechamento) {
+                        var.update $sem_comparecimento {
+                          value = true
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // A sem comparecimento fica de fora das duas listas
+                conditional {
+                  if (!$sem_comparecimento && $reserva.status == "CONFIRMADA" && $reserva.inicio <= $agora) {
+                    var.update $em_andamento {
+                      value = $em_andamento|push:$reserva
+                    }
+                  }
+
+                  // Pendente já iniciada não impede a ação e é cancelada junto (D10)
+                  elseif (!$sem_comparecimento) {
+                    var.update $reservas {
+                      value = $reservas|push:$reserva
+                    }
+                  }
+                }
+              }
             }
           }
         }

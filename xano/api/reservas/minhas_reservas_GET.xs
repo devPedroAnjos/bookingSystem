@@ -6,6 +6,9 @@
 // C7: o status devolvido é a situação efetiva (design D2): a pendente vencida aparece EXPIRADA
 // mesmo antes de ser gravada. Devolve o motivo da recusa, mas não quem decidiu, assim como não
 // devolve quem cancelou (D7).
+// C10 (D8): situação efetiva com NAO_COMPARECEU e CONCLUIDA; pode_cancelar só antes do início e sem
+// check-in; cancelamento_gera_falta; janela de check-in (horas em São Paulo) e checkin_possivel;
+// falta derivada da situação (aparece antes da gravação).
 // Lista as reservas do usuário autenticado
 query minhas_reservas verb=GET {
   api_group = "reservas"
@@ -26,12 +29,21 @@ query minhas_reservas verb=GET {
       return = {type: "single"}
     } as $configuracao
 
-    precondition ($configuracao != null && !($configuracao.prazo_cancelamento_minutos|is_null)) {
+    precondition ($configuracao != null && !($configuracao.prazo_cancelamento_minutos|is_null) && !($configuracao.checkin_antes_minutos|is_null) && !($configuracao.checkin_depois_minutos|is_null) && !($configuracao.comparecimento_desde|is_null)) {
       error = "Configuração de reservas incompleta: execute o bootstrap."
     }
 
     var $limite_cancelamento {
       value = $configuracao.prazo_cancelamento_minutos * 60000
+    }
+
+    // Janela de check-in (C10, D2), com os parâmetros atuais
+    var $antes_ms {
+      value = $configuracao.checkin_antes_minutos * 60000
+    }
+
+    var $depois_ms {
+      value = $configuracao.checkin_depois_minutos * 60000
     }
 
     var $agora {
@@ -80,24 +92,98 @@ query minhas_reservas verb=GET {
 
         function.run situacao_efetiva {
           input = {
-            status: $reserva.status
-            inicio: $reserva.inicio
-            agora : $agora
+            status                : $reserva.status
+            inicio                : $reserva.inicio
+            agora                 : $agora
+            fim                   : $reserva.fim
+            check_in_em           : $reserva.check_in_em
+            checkin_depois_minutos: $configuracao.checkin_depois_minutos
+            comparecimento_desde  : $configuracao.comparecimento_desde
           }
         } as $situacao
 
+        // C10 (D8): cancela só antes do início e sem check-in; a confirmada depois do prazo
+        // geraria falta (decisões 2, 3 e 13). Só usabilidade: a rota de cancelar revalida.
         var $pode_cancelar {
           value = false
         }
 
+        var $cancelamento_gera_falta {
+          value = false
+        }
+
         conditional {
-          if ($situacao == "PENDENTE" || $situacao == "CONFIRMADA") {
+          if (($situacao == "PENDENTE" || $situacao == "CONFIRMADA") && $reserva.inicio > $agora && ($reserva.check_in_em|is_null)) {
+            var.update $pode_cancelar {
+              value = true
+            }
+
             conditional {
-              if ($reserva.inicio >= $agora + $limite_cancelamento) {
-                var.update $pode_cancelar {
+              if ($situacao == "CONFIRMADA" && $reserva.inicio < $agora + $limite_cancelamento) {
+                var.update $cancelamento_gera_falta {
                   value = true
                 }
               }
+            }
+          }
+        }
+
+        // Janela de check-in: de antes do início até depois dele, sem passar do fim (decisão 5)
+        var $checkin_abre {
+          value = $reserva.inicio - $antes_ms
+        }
+
+        function.run fechamento_checkin {
+          input = {inicio: $reserva.inicio, fim: $reserva.fim, depois_ms: $depois_ms}
+        } as $checkin_fecha
+
+        var $checkin_possivel {
+          value = false
+        }
+
+        conditional {
+          if ($situacao == "CONFIRMADA" && ($reserva.check_in_em|is_null) && $agora >= $checkin_abre && $agora <= $checkin_fecha) {
+            var.update $checkin_possivel {
+              value = true
+            }
+          }
+        }
+
+        var $checkin_abre_hora {
+          value = $checkin_abre|format_timestamp:"H:i":"America/Sao_Paulo"
+        }
+
+        var $checkin_fecha_hora {
+          value = $checkin_fecha|format_timestamp:"H:i":"America/Sao_Paulo"
+        }
+
+        var $check_in_hora {
+          value = null
+        }
+
+        conditional {
+          if (!($reserva.check_in_em|is_null)) {
+            var.update $check_in_hora {
+              value = $reserva.check_in_em|format_timestamp:"H:i":"America/Sao_Paulo"
+            }
+          }
+        }
+
+        // Falta derivada da situação efetiva, para aparecer mesmo antes da gravação
+        var $falta {
+          value = null
+        }
+
+        conditional {
+          if ($situacao == "NAO_COMPARECEU") {
+            var.update $falta {
+              value = "NAO_COMPARECIMENTO"
+            }
+          }
+
+          elseif ($situacao == "CANCELADA" && $reserva.motivo_cancelamento == "USUARIO_TARDIO") {
+            var.update $falta {
+              value = "CANCELAMENTO_TARDIO"
             }
           }
         }
@@ -158,6 +244,13 @@ query minhas_reservas verb=GET {
             |set:"motivo_descricao":$motivo_descricao
             |set:"motivo_recusa":$reserva.motivo_recusa
             |set:"pode_cancelar":$pode_cancelar
+            |set:"cancelamento_gera_falta":$cancelamento_gera_falta
+            |set:"check_in_em":$reserva.check_in_em
+            |set:"check_in_hora":$check_in_hora
+            |set:"checkin_abre":$checkin_abre_hora
+            |set:"checkin_fecha":$checkin_fecha_hora
+            |set:"checkin_possivel":$checkin_possivel
+            |set:"falta":$falta
         }
 
         var.update $lista {

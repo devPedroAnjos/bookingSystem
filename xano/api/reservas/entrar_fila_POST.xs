@@ -33,8 +33,10 @@ query entrar_fila verb=POST {
       value = $horario.fim
     }
 
-    // Faxina de vencimentos e da fila em transação própria (C7, D3; C9, D5)
-    function.run aplicar_vencimentos as $vencimentos
+    // Faxina de vencimentos e da fila em transação própria (C7, D3; C9, D5), com o usuário (C10, D3)
+    function.run aplicar_vencimentos {
+      input = {usuario_id: $auth.id}
+    } as $vencimentos
 
     var $entrada_id {
       value = null
@@ -71,7 +73,19 @@ query entrar_fila verb=POST {
           value = $pedido.espaco
         }
 
-        // 3. (Ponto de extensão C10: recusar quem tem penalidade ativa.)
+        // 3. Penalidade em vigor (C10, D3 e D6), com as faltas do usuário gravadas antes
+        function.run processar_vencimentos_usuario {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $vencimentos_usuario
+
+        function.run penalidade_em_vigor {
+          input = {usuario_id: $ator.id, agora: $agora}
+        } as $penalidade
+
+        precondition (!$penalidade.em_vigor) {
+          error_type = "inputerror"
+          error = "Você está com penalidade até " ~ $penalidade.ate_texto ~ ". Até lá, não é possível criar reservas nem entrar em filas."
+        }
 
         // 4. (Ponto de extensão C11: recusar intervalo com bloqueio ativo sobreposto.)
 
@@ -115,9 +129,16 @@ query entrar_fila verb=POST {
           error = "Você já está na fila deste espaço nesse horário."
         }
 
+        // Predicado de ocupação da C10 (D2), usado nos passos 7 e 8
+        function.run obter_configuracao_comparecimento as $comparecimento
+
+        var $inicio_minimo {
+          value = $agora - $comparecimento.depois_ms
+        }
+
         // 7. Ninguém entra na fila contra a própria reserva (decisão 9)
         db.query reserva {
-          where = $db.reserva.usuario_id == $ator.id && $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = $db.reserva.usuario_id == $ator.id && $db.reserva.espaco_id == $espaco.id && (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde))) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           return = {type: "exists"}
         } as $reserva_propria
 
@@ -133,7 +154,7 @@ query entrar_fila verb=POST {
         } as $vaga_retida
 
         db.query reserva {
-          where = $db.reserva.espaco_id == $espaco.id && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora)) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
+          where = $db.reserva.espaco_id == $espaco.id && (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde))) && $db.reserva.inicio < $fim && $db.reserva.fim > $inicio
           sort = {inicio: "asc"}
           return = {type: "list"}
         } as $conflitantes

@@ -31,6 +31,11 @@ query parametros verb=GET {
     prazo_fila_minutos        : $configuracao.prazo_fila_minutos
     prazo_confirmacao_fila_minutos: $configuracao.prazo_confirmacao_fila_minutos
     tempo_minimo_fila_minutos : $configuracao.tempo_minimo_fila_minutos
+    checkin_antes_minutos     : $configuracao.checkin_antes_minutos
+    checkin_depois_minutos    : $configuracao.checkin_depois_minutos
+    faltas_para_penalidade    : $configuracao.faltas_para_penalidade
+    janela_faltas_dias        : $configuracao.janela_faltas_dias
+    duracao_penalidade_dias   : $configuracao.duracao_penalidade_dias
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"

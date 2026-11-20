@@ -162,9 +162,16 @@ function processar_fila {
               return = {type: "list"}
             } as $regras
 
-            // Ocupação dos espaços com entradas aguardando, lida uma vez (design D5)
+            // Ocupação dos espaços com entradas aguardando, lida uma vez (design D5), com o
+            // predicado de ocupação da C10 (D2)
+            function.run obter_configuracao_comparecimento as $comparecimento
+
+            var $inicio_minimo {
+              value = $input.agora - $comparecimento.depois_ms
+            }
+
             db.query reserva {
-              where = $db.reserva.espaco_id in $ids_espacos && ($db.reserva.status == "CONFIRMADA" || ($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $input.agora)) && $db.reserva.fim > $input.agora
+              where = $db.reserva.espaco_id in $ids_espacos && (($db.reserva.status == "PENDENTE" && $db.reserva.inicio > $input.agora) || ($db.reserva.status == "CONFIRMADA" && $db.reserva.fim > $input.agora && ($db.reserva.check_in_em != null || $db.reserva.inicio >= $inicio_minimo || $db.reserva.inicio < $comparecimento.comparecimento_desde)))
               return = {type: "list"}
             } as $reservas_ocupando
 

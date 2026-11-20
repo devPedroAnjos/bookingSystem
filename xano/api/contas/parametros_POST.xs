@@ -1,7 +1,7 @@
 // Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9 e da C5, D8).
 // Limites inteiros >= 1, inclusive o prazo de cancelamento (C6, D12) e o prazo para deslocar por
 // prioridade (C8, D9) e os três parâmetros da fila de espera (C9, D2 e D12: corte, prazo para
-// confirmar e tempo mínimo útil); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
+// confirmar e tempo mínimo útil) e os cinco de check-in e penalidade (C10, D1); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
 // granularidade divisora de 60 e compatível com as regras dos tipos (conferido na trava);
 // dias de funcionamento de 1 a 7, sem repetição, ao menos um.
 // Reduzir um limite não remove ninguém. Se algo for inválido, nada é gravado.
@@ -21,6 +21,11 @@ query parametros verb=POST {
     int? prazo_fila_minutos?
     int? prazo_confirmacao_fila_minutos?
     int? tempo_minimo_fila_minutos?
+    int? checkin_antes_minutos?
+    int? checkin_depois_minutos?
+    int? faltas_para_penalidade?
+    int? janela_faltas_dias?
+    int? duracao_penalidade_dias?
     int? granularidade_minutos?
     json? dias_funcionamento?
   }
@@ -55,7 +60,12 @@ query parametros verb=POST {
         prazo_deslocamento_minutos: $input.prazo_deslocamento_minutos,
         prazo_fila_minutos        : $input.prazo_fila_minutos,
         prazo_confirmacao_fila_minutos: $input.prazo_confirmacao_fila_minutos,
-        tempo_minimo_fila_minutos : $input.tempo_minimo_fila_minutos
+        tempo_minimo_fila_minutos : $input.tempo_minimo_fila_minutos,
+        checkin_antes_minutos     : $input.checkin_antes_minutos,
+        checkin_depois_minutos    : $input.checkin_depois_minutos,
+        faltas_para_penalidade    : $input.faltas_para_penalidade,
+        janela_faltas_dias        : $input.janela_faltas_dias,
+        duracao_penalidade_dias   : $input.duracao_penalidade_dias
       }
     }
   
@@ -148,6 +158,11 @@ query parametros verb=POST {
             prazo_fila_minutos        : $antes.prazo_fila_minutos
             prazo_confirmacao_fila_minutos: $antes.prazo_confirmacao_fila_minutos
             tempo_minimo_fila_minutos : $antes.tempo_minimo_fila_minutos
+            checkin_antes_minutos     : $antes.checkin_antes_minutos
+            checkin_depois_minutos    : $antes.checkin_depois_minutos
+            faltas_para_penalidade    : $antes.faltas_para_penalidade
+            janela_faltas_dias        : $antes.janela_faltas_dias
+            duracao_penalidade_dias   : $antes.duracao_penalidade_dias
             granularidade_minutos     : $antes.granularidade_minutos
             dias_funcionamento        : $antes.dias_funcionamento
           }
@@ -162,6 +177,11 @@ query parametros verb=POST {
             prazo_fila_minutos        : $depois.prazo_fila_minutos
             prazo_confirmacao_fila_minutos: $depois.prazo_confirmacao_fila_minutos
             tempo_minimo_fila_minutos : $depois.tempo_minimo_fila_minutos
+            checkin_antes_minutos     : $depois.checkin_antes_minutos
+            checkin_depois_minutos    : $depois.checkin_depois_minutos
+            faltas_para_penalidade    : $depois.faltas_para_penalidade
+            janela_faltas_dias        : $depois.janela_faltas_dias
+            duracao_penalidade_dias   : $depois.duracao_penalidade_dias
             granularidade_minutos     : $depois.granularidade_minutos
             dias_funcionamento        : $depois.dias_funcionamento
           }
