@@ -9,6 +9,7 @@
 // C10 (D8): situação efetiva com NAO_COMPARECEU e CONCLUIDA; pode_cancelar só antes do início e sem
 // check-in; cancelamento_gera_falta; janela de check-in (horas em São Paulo) e checkin_possivel;
 // falta derivada da situação (aparece antes da gravação).
+// C11 (design D6): a reserva cancelada por bloqueio traz o tipo e o motivo do bloqueio, sem o autor.
 // Lista as reservas do usuário autenticado
 query minhas_reservas verb=GET {
   api_group = "reservas"
@@ -67,6 +68,28 @@ query minhas_reservas verb=GET {
     db.query tipo_espaco {
       return = {type: "list"}
     } as $tipos
+
+    // C11: os bloqueios que cancelaram reservas do usuário, numa consulta só
+    var $ids_bloqueios {
+      value = ($reservas|filter:!($$.bloqueio_id|is_null))|map:$$.bloqueio_id|unique
+    }
+
+    var $bloqueios {
+      value = []
+    }
+
+    conditional {
+      if (($ids_bloqueios|count) > 0) {
+        db.query bloqueio {
+          where = $db.bloqueio.id in $ids_bloqueios
+          return = {type: "list"}
+        } as $bloqueios_das_reservas
+
+        var.update $bloqueios {
+          value = $bloqueios_das_reservas
+        }
+      }
+    }
 
     var $lista {
       value = []
@@ -208,6 +231,34 @@ query minhas_reservas verb=GET {
           }
         }
 
+        var $bloqueio_tipo {
+          value = null
+        }
+
+        var $bloqueio_motivo {
+          value = null
+        }
+
+        conditional {
+          if ($reserva.motivo_cancelamento == "BLOQUEIO" && !($reserva.bloqueio_id|is_null)) {
+            var $bloqueio {
+              value = $bloqueios|find:$$.id == $reserva.bloqueio_id
+            }
+
+            conditional {
+              if ($bloqueio != null) {
+                var.update $bloqueio_tipo {
+                  value = $bloqueio.tipo
+                }
+
+                var.update $bloqueio_motivo {
+                  value = $bloqueio.motivo
+                }
+              }
+            }
+          }
+        }
+
         var $espaco_item {
           value = {}
             |set:"id":$espaco.id
@@ -243,6 +294,8 @@ query minhas_reservas verb=GET {
             |set:"motivo_detalhe":$motivo_detalhe
             |set:"motivo_descricao":$motivo_descricao
             |set:"motivo_recusa":$reserva.motivo_recusa
+            |set:"bloqueio_tipo":$bloqueio_tipo
+            |set:"bloqueio_motivo":$bloqueio_motivo
             |set:"pode_cancelar":$pode_cancelar
             |set:"cancelamento_gera_falta":$cancelamento_gera_falta
             |set:"check_in_em":$reserva.check_in_em

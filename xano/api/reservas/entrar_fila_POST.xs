@@ -87,7 +87,10 @@ query entrar_fila verb=POST {
           error = "Você está com penalidade até " ~ $penalidade.ate_texto ~ ". Até lá, não é possível criar reservas nem entrar em filas."
         }
 
-        // 4. (Ponto de extensão C11: recusar intervalo com bloqueio ativo sobreposto.)
+        // 4. Bloqueio ativo sobreposto (C11, design D4)
+        function.run exigir_sem_bloqueio {
+          input = {espaco_id: $espaco.id, inicio: $inicio, fim: $fim}
+        } as $sem_bloqueio
 
         // 5. Fechamento da fila (D3 e D12): corte menos o tempo mínimo útil; exatamente no
         // fechamento a fila já está encerrada

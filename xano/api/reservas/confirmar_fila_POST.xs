@@ -139,6 +139,12 @@ query confirmar_fila verb=POST {
           error = "Horário ocupado: já existe uma reserva neste espaço nesse intervalo."
         }
       
+        // Bloqueio ativo sobreposto (C11, design D4): defesa, porque o bloqueio encerra as entradas
+        // sobrepostas ao ser criado
+        function.run exigir_sem_bloqueio {
+          input = {espaco_id: $entrada.espaco_id, inicio: $entrada.inicio, fim: $entrada.fim}
+        } as $sem_bloqueio
+
         // 6. Gravação: reserva com origem FILA e entrada ATENDIDA
         var $status {
           value = "CONFIRMADA"

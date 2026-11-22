@@ -3,19 +3,37 @@
 // afetado tiver reserva CONFIRMADA em andamento. Ninguém, nem admin nem coordenador, encerra uma
 // reserva em uso. Deve ser chamada dentro da trava, antes de qualquer gravação da rota.
 // varios_espacos escolhe a mensagem: um espaço, ou os espaços de um tipo ou unidade.
+// C11 (design D3): com inicio e fim (criação de bloqueio), só conta a reserva em andamento
+// sobreposta a esse período (modo bloqueio da seleção).
 // Recusa com o horário de término da última reserva em andamento, ou devolve true
 function exigir_sem_reserva_em_andamento {
   input {
     json espacos_ids
     int agora
     bool? varios_espacos?
+    int? inicio?
+    int? fim?
   }
 
   stack {
+    var $modo {
+      value = "espaco"
+    }
+
+    conditional {
+      if (!($input.inicio|is_null) && !($input.fim|is_null)) {
+        var.update $modo {
+          value = "bloqueio"
+        }
+      }
+    }
+
     function.run selecionar_reservas_a_cancelar {
       input = {
-        modo       : "espaco"
+        modo       : $modo
         espacos_ids: $input.espacos_ids
+        inicio     : $input.inicio
+        fim        : $input.fim
         agora      : $input.agora
       }
     } as $selecao
