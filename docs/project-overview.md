@@ -12,7 +12,7 @@ O BookingSystem permite que alunos e professores de uma instituição de ensino 
 
 A instituição é organizada em **unidades** (campus ou prédio). Cada unidade possui espaços de diferentes **tipos** — sala de aula, laboratório, biblioteca e auditório — e cada tipo possui regras próprias de uso: quem pode reservar, duração mínima e máxima, antecedência, limite de reservas e necessidade de aprovação.
 
-Coordenadores de unidade cuidam dos espaços da sua unidade (cadastro, bloqueios e aprovações). Administradores definem as regras gerais, gerenciam papéis, revisam penalidades e acompanham o uso por meio de painel, relatórios e log de auditoria.
+Coordenadores de unidade cuidam dos espaços da sua unidade (cadastro, bloqueios e aprovações). Administradores definem as regras gerais, gerenciam papéis, revisam penalidades e contam com o log de auditoria de toda ação sensível (painel e relatórios ficam fora da v1, seção 5).
 
 ## 2. Problema
 
@@ -31,16 +31,16 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 - Resolver disputas por horário de forma **determinística e transparente**, por nível de prioridade do papel e, em empate, por ordem de chegada.
 - Aplicar automaticamente as regras de cada tipo de espaço.
 - Reduzir reservas não utilizadas por meio de check-in, fila de espera e penalidades.
-- Dar à gestão visibilidade de uso (painel e relatórios) e rastreabilidade completa (log de auditoria).
+- Dar à gestão rastreabilidade completa (log de auditoria) e, como evolução (seção 5), visibilidade de uso por painel e relatórios.
 
 ## 4. Usuários e papéis
 
 | Papel | Nível de prioridade | Responsabilidades principais |
 |---|---|---|
 | **Aluno** | 1 (menor) | Busca espaços, reserva biblioteca e laboratório, cancela, faz check-in, avalia, entra em fila de espera. |
-| **Professor** | 2 | Tudo que o aluno faz, e também reserva sala de aula e auditório, inclusive reserva recorrente de sala de aula. |
+| **Professor** | 2 | Tudo que o aluno faz, e também reserva sala de aula e auditório. A reserva recorrente de sala de aula fica fora da v1 (seção 7.5). |
 | **Coordenador de unidade** | 3 | Cadastra e edita espaços, bloqueia espaços (manutenção, evento, feriado), aprova ou recusa reservas pendentes e aprova cadastros de professor — **somente na(s) própria(s) unidade(s)**. Também pode reservar. |
-| **Administrador** | 3 | Define regras por tipo de espaço (os parâmetros gerais, só o principal), cria tipos de espaço, mantém o catálogo de recursos, move espaços entre unidades, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços, acessa painel, relatórios e log de auditoria de todas as unidades. Também pode reservar. |
+| **Administrador** | 3 | Define regras por tipo de espaço (os parâmetros gerais, só o principal), cria tipos de espaço, mantém o catálogo de recursos, move espaços entre unidades, gerencia unidades, papéis e coordenações, aprova cadastros de professor e de coordenador, revisa e anula penalidades, bloqueia espaços em todas as unidades. O log de auditoria é gravado em toda ação sensível; painel, relatórios e tela de consulta do log ficam fora da v1. Também pode reservar. |
 
 - **Administradores:** até **3 ativos** (parâmetro), contando o **administrador principal** (o primeiro, criado na instalação). Só o principal cria administradores, do zero ou promovendo um coordenador (que perde as coordenações), rebaixa um administrador secundário (somente a coordenador) e altera os parâmetros gerais. Os secundários gerenciam as demais contas, mas não alteram outros administradores. Ninguém altera o principal pelo sistema.
 - **Coordenador:** coordena de **1 a 2 unidades** (parâmetro), e cada unidade tem **no máximo 4 coordenadores** (parâmetro). O administrador age em todas as unidades.
@@ -58,16 +58,23 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 - Gestão de unidades, tipos de espaço, espaços e recursos.
 - Configuração de regras por tipo de espaço e por papel.
 - Busca de espaços disponíveis com filtros (unidade, tipo, data/horário, capacidade, recursos).
-- Reserva avulsa e reserva recorrente semanal (apenas sala de aula).
+- Reserva avulsa.
+- Bloqueio de espaços por período (manutenção, evento ou feriado).
 - Controle de concorrência e prioridade entre papéis.
 - Fluxo de aprovação de reservas pendentes.
 - Fila de espera.
 - Cancelamento, check-in, registro de falta e penalidade.
 - Avaliação do uso (nota de 1 a 5 e comentário).
 - Avisos nas telas do sistema: o motivo de cada cancelamento, recusa e expiração aparece em "Minhas reservas", e a vaga retida pela fila aparece no topo de todas as páginas.
-- Painel, relatórios e log de auditoria.
+- Log de auditoria gravado em toda ação sensível.
 
 ### Fora do escopo (v1)
+
+- Saíram da v1 no replanejamento de 22/11/2026, por causa do prazo de entrega (decisão 1 do `decisions-log.md` da change `bloqueios`), e ficam como evolução:
+  - reserva recorrente semanal de sala de aula (seção 7.5);
+  - fotos dos espaços enviadas pela gestão;
+  - painel, relatórios e tela de consulta do log de auditoria;
+  - bloqueio de todos os espaços de uma unidade numa só ação (feriado da unidade inteira), que pode voltar como change extra.
 
 - Notificação por e-mail, SMS ou push (prevista como evolução).
 - Central de notificações in-app, com histórico e marcação de lida (evolução). Saiu da v1 no replanejamento de 18/11/2026, por causa do prazo de entrega; na v1, os avisos aparecem nas próprias telas.
@@ -86,7 +93,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 3. **Verificação de disponibilidade** — o sistema verifica penalidade em vigor, bloqueios, conflitos de horário e regras do tipo de espaço antes de aceitar o pedido.
 4. **Reserva** — confirmada imediatamente ou criada como pendente quando o tipo exige aprovação para aquele papel.
 5. **Disputa de concorrência** — quando o horário está ocupado, o sistema decide entre deslocar a reserva de menor prioridade ou colocar o solicitante na fila de espera (ver seção 7.3).
-6. **Reserva recorrente** — professores, coordenadores e administradores podem reservar uma sala de aula semanalmente por um período.
+6. **Reserva recorrente** (fora da v1, seção 5) — professores, coordenadores e administradores poderiam reservar uma sala de aula semanalmente por um período.
 7. **Aprovação** — coordenador aprova ou recusa reservas pendentes (motivo obrigatório na recusa). Sem decisão até o início, a reserva expira.
 8. **Cancelamento** — pelo usuário, com regra de prazo; ou pelo sistema, em caso de bloqueio ou de deslocamento por prioridade.
 9. **Fila de espera** — o primeiro da fila é avisado nas telas do sistema quando a vaga é liberada e precisa confirmar dentro do prazo.
@@ -94,7 +101,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 11. **Penalidade** — o acúmulo de faltas bloqueia novas reservas por um período. Só o administrador pode anular.
 12. **Avaliação** — após o uso, nota de 1 a 5 e comentário opcional, visíveis a todos.
 13. **Cadastro de espaços e bloqueios** — pelo coordenador, na própria unidade.
-14. **Gestão** — regras, papéis, penalidades, painel, relatórios e log de auditoria pelo administrador.
+14. **Gestão** — regras, papéis e penalidades pelo administrador, com log de auditoria gravado. Painel e relatórios ficam fora da v1 (seção 5).
 
 ## 7. Regras de negócio e restrições importantes
 
@@ -156,6 +163,8 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 
 ### 7.5 Reserva recorrente
 
+> **Fora da v1** (replanejamento de 22/11/2026, seção 5). As regras abaixo ficam registradas para a evolução.
+
 - Disponível **apenas para sala de aula** (e, portanto, para professor, coordenador e administrador).
 - Recorrência **semanal**: dia da semana, horário de início e fim, data inicial e final. O administrador define o limite máximo do período (padrão: até o fim do semestre letivo, máximo de 6 meses).
 - Cada ocorrência é uma reserva independente: tem check-in, falta e cancelamento próprios.
@@ -174,8 +183,12 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 ### 7.7 Bloqueios
 
 - Coordenadores (na própria unidade) e administradores bloqueiam espaços por **manutenção, evento ou feriado**.
-- Reservas ativas no período do bloqueio são **canceladas automaticamente**, sem penalidade, e os usuários veem o motivo em "Minhas reservas".
+- O bloqueio vale para **um espaço** e um período com data e hora de início e de fim. Pode durar vários dias e pode ter começado antes de ser criado, mas o fim precisa estar no futuro. As regras de horário do tipo não se aplicam a ele.
+- Reservas ativas no período do bloqueio que ainda não começaram são **canceladas automaticamente**, inteiras, sem penalidade, e os usuários veem o tipo e o motivo do bloqueio em "Minhas reservas".
+- Se houver uma reserva confirmada **em andamento** sobreposta ao período, o bloqueio é recusado, como na desativação de espaço.
 - Entradas de fila de espera no período bloqueado são encerradas.
+- Enquanto o bloqueio está ativo, ninguém reserva nem entra na fila no período, nem deslocando reservas, e a busca mostra o espaço como "Bloqueado".
+- O bloqueio não é editado. Para mudar o período, ele é **removido** e outro é criado. A remoção não restaura reservas nem entradas de fila.
 
 ### 7.8 Cancelamento, comparecimento e penalidade
 
@@ -291,7 +304,7 @@ Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem 
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão ou inativação), bloquear, alterar regra, alterar papel, fazer check-in, registrar não comparecimento e conclusão (ações do sistema, com ator vazio e o instante real), cancelar tardiamente, registrar falta, aplicar penalidade e registrar o cumprimento dela (ações do sistema, salvo a falta por cancelamento tardio), encerrar entradas de fila por penalidade, anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão, inativação ou bloqueio), criar e remover bloqueio, alterar regra, alterar papel, fazer check-in, registrar não comparecimento e conclusão (ações do sistema, com ator vazio e o instante real), cancelar tardiamente, registrar falta, aplicar penalidade e registrar o cumprimento dela (ações do sistema, salvo a falta por cancelamento tardio), encerrar entradas de fila por penalidade, anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -315,18 +328,17 @@ Ordem das changes (ajustada durante os Explores):
     - **as pendências da C6:** penalidade na criação, cancelamento tardio, fechamento das reservas passadas e "em andamento" sem o não comparecimento;
     - **as pendências da C7:** vencimentos com o instante real, penalidade em vigor derivada por datas e check-in de reserva aprovada perto do início;
     - **as pendências vindas da C9:** penalidade na entrada e na confirmação da fila, e encerramento das entradas do penalizado.
-11. Bloqueios.
-    - Pendências da C6: bloqueio ativo no ponto de extensão da criação e cancelamento por bloqueio com `bloqueio_id`.
-    - Pendência da C7: procurar as reservas ativas sobrepostas pela situação efetiva.
-    - Vindas da C9: o bloqueio recusa a entrada na fila sobreposta (ponto de extensão em `entrar_fila`) e encerra as entradas de fila no período bloqueado.
-12. Reserva recorrente de sala de aula.
-13. Espaço: fotos enviadas pela gestão, busca em formato de feed, página do espaço e avaliações. A avaliação depende das reservas concluídas da C10 (seção 7.9).
-14. Visual: acabamento do frontend, sem mudança de regra.
-15. Painel, relatórios e log de auditoria: em aberto, conforme o prazo. O log de auditoria é gravado desde a primeira change com ação sensível. Pendência da C7: painel e relatórios usam a situação efetiva.
+**Replanejamento de 22/11/2026.** Por causa do prazo de entrega, o usuário cortou da v1 a reserva recorrente (antiga C12), as fotos dos espaços e o painel e relatórios (antiga C15), e juntou o resto da C13 com o visual (decisão 1 do `decisions-log.md` da change `bloqueios`).
+
+11. Bloqueios: bloqueio de um espaço por período pelo coordenador da unidade ou pelo admin, recusado com reserva confirmada em andamento; cancela as reservas sobrepostas que ainda não começaram (motivo `BLOQUEIO`, com `bloqueio_id`, sem falta) e encerra as entradas de fila sobrepostas; a criação de reserva, inclusive com deslocamento, a entrada e a confirmação da fila recusam o período bloqueado; a busca mostra "Bloqueado"; remoção sem restaurar, sem edição; página "Bloqueios" (C11, `bloqueios`). Resolveu as pendências da C6 (ponto de extensão da criação e `bloqueio_id`), da C7 (sobrepostas pela situação efetiva) e da C9 (entrada na fila e encerramento).
+12. Espaço e visual: busca em formato de feed, página do espaço, avaliações (a avaliação depende das reservas concluídas da C10, seção 7.9) e acabamento do frontend, sem fotos.
+13. Extra, se houver tempo: bloqueio de todos os espaços de uma unidade numa só ação.
 
 **Trabalho futuro (fora da v1):**
 - Central de notificações in-app. Hoje o motivo de cada cancelamento, recusa, expiração e deslocamento já aparece em "Minhas reservas", e a vaga da fila aparece no topo das páginas. As pendências registradas para ela foram: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`) (C6); notificar aprovação, recusa e expiração (C7); avisar o dono da reserva deslocada (C8).
 - Contestação de penalidade pelo usuário.
+- Reserva recorrente de sala de aula (seção 7.5), fotos dos espaços e painel, relatórios e consulta do log de auditoria (replanejamento de 22/11/2026). Pendência da C7 para o painel: usar a situação efetiva.
+- Motivo do encerramento na seção "Fila de espera" de "Minhas reservas" (hoje só "Fila encerrada"; exige um campo de motivo na entrada de fila).
 - E-mail de "vaga liberada" para quem está na fila (decisão 28 da C9), para o fim do projeto: Brevo (300 e-mails por dia no plano gratuito, remetente verificado) ou Resend pelo `util.send_email` do Xano (exige domínio próprio). É uma dependência externa nova, com change própria.
 
 ## 12. Fonte de verdade e documentação

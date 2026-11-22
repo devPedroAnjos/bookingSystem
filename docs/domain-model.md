@@ -31,7 +31,7 @@ Usuário (Aluno | Professor | Coordenador | Admin)
 ConfiguraçãoGeral (parâmetros globais — registro único)
 ```
 
-> **Fora da v1:** Contestação (§2.14) e Notificação (§2.16) continuam no modelo como base para a evolução, mas saíram da v1 no replanejamento de 18/11/2026 (`project-overview.md`, seção 5). Na v1, os avisos aparecem nas telas.
+> **Fora da v1:** Contestação (§2.14) e Notificação (§2.16) continuam no modelo como base para a evolução, mas saíram da v1 no replanejamento de 18/11/2026 (`project-overview.md`, seção 5). Na v1, os avisos aparecem nas telas. A Série Recorrente (§2.10) saiu no replanejamento de 22/11/2026 e também fica no modelo.
 
 ---
 
@@ -162,8 +162,11 @@ Período em que um espaço fica indisponível.
 
 **Regras estruturais:**
 - Criado por coordenador (da unidade do espaço) ou admin.
-- Ao ser criado, cancela as reservas ativas sobrepostas (motivo `BLOQUEIO`, sem penalidade) e encerra as entradas de fila sobrepostas.
-- Um bloqueio de feriado para uma unidade inteira é registrado como um bloqueio por espaço.
+- Só em espaço ativo. `inicio < fim` e o fim no futuro; pode durar vários dias e pode ter começado antes da criação. As regras de horário do tipo não se aplicam.
+- É recusado enquanto houver reserva `CONFIRMADA` em andamento sobreposta ao período (a `NAO_COMPARECEU` efetiva não conta), como na desativação de espaço.
+- Ao ser criado, cancela inteiras as reservas `PENDENTE` e `CONFIRMADA` sobrepostas que ainda não começaram (motivo `BLOQUEIO`, com `bloqueio_id`, sem penalidade) e encerra as entradas de fila sobrepostas (`AGUARDANDO` e `NOTIFICADA`). A pendente cujo início já chegou expirou e não é cancelada.
+- Não é editado. A remoção (`REMOVIDO`) é permitida enquanto ele não terminou e não restaura reservas nem entradas de fila.
+- Um bloqueio de feriado para uma unidade inteira é registrado como um bloqueio por espaço. A criação de todos numa só ação ficou fora da v1 (replanejamento de 22/11/2026).
 
 ### 2.9 Reserva
 
@@ -204,7 +207,7 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
 - **Decisão da pendente:** só o coordenador que coordena a unidade atual do espaço, ou um admin, aprova ou recusa uma `PENDENTE`, e só antes do início. Ninguém decide a própria reserva. Aprovar não confere de novo as regras, o limite nem o conflito. A recusa exige motivo (até 500 caracteres), que o dono vê. A decisão registra quem decidiu e quando (`decidido_por_id`, `decidido_em`, `motivo_recusa`).
 - **Expiração:** a `PENDENTE` sem decisão até o início expira sem falta. Ela é auditada com ator vazio e com o instante real do vencimento (o início).
 - Não pode sobrepor uma vaga retida pela fila de espera (entrada `NOTIFICADA`), exceto a reserva gerada pela confirmação dessa própria entrada.
-- Não pode sobrepor um bloqueio ativo.
+- Não pode sobrepor um bloqueio ativo, nem deslocando reservas: o bloqueio é verificado antes do conflito.
 - Cancelamento com motivo `USUARIO_TARDIO` (só da `CONFIRMADA`, depois do prazo de cancelamento, §2.18) ou situação `NAO_COMPARECEU` gera uma **Falta**.
 - **Check-in:** só o dono, só em `CONFIRMADA`, de `checkin_antes_minutos` antes até `checkin_depois_minutos` depois do início, sem passar do fim, com os dois limites incluídos e os parâmetros vigentes no momento da verificação.
 - **Deslocamento por prioridade:** um pedido que conflita com reservas ativas as desloca quando, ao mesmo tempo:
@@ -218,6 +221,8 @@ Ocupação de um espaço por um usuário em um intervalo de tempo. É o conceito
 - Reservas nunca são excluídas fisicamente.
 
 ### 2.10 Série Recorrente
+
+**Fora da v1** (replanejamento de 22/11/2026): mantida no modelo para a evolução.
 
 Agrupa as ocorrências semanais de uma reserva recorrente de **sala de aula**.
 
