@@ -5,6 +5,7 @@
 Definir quem pode executar ações de gestão e sobre quais unidades. A regra vale para todas as rotas restritas do backend: o admin age em todas as unidades, o coordenador só nas que coordena e os demais papéis não têm ações de gestão. Também orienta o frontend a exibir só o que o papel do usuário pode usar.
 
 ## Requirements
+
 ### Requirement: Autorização sempre verificada no backend
 Toda rota restrita DEVE (MUST) verificar no backend, a cada requisição:
 1. se o token é válido e a conta está `ATIVA` (senão, não autenticado);
@@ -54,7 +55,7 @@ Mudanças de papel, de situação da conta ou de coordenação DEVEM (MUST) vale
 As páginas autenticadas DEVEM (MUST) exibir um menu só com as áreas permitidas ao papel:
 - todos: "Início", "Buscar espaços", "Minhas reservas" e "Trocar senha";
 - admin e coordenador: "Aprovações", "Reservas da unidade" e "Espaços";
-- só admin: "Usuários", "Unidades", "Tipos de espaço" e "Recursos";
+- só admin: "Usuários", "Unidades", "Tipos de espaço", "Recursos" e "Penalidades";
 - só o admin principal: "Administradores" e "Parâmetros".
 
 Com senha provisória, o menu segue a capability `senha` e mostra apenas "Trocar senha" e "Sair". Quem abre diretamente o endereço de uma área não permitida DEVE ser levado para "Início". Isso é usabilidade; a segurança é do backend.
@@ -66,16 +67,16 @@ Com senha provisória, o menu segue a capability `senha` e mostra apenas "Trocar
 #### Scenario: Menu do coordenador
 - **WHEN** um coordenador faz login
 - **THEN** o menu mostra "Início", "Buscar espaços", "Minhas reservas", "Aprovações", "Reservas da unidade", "Espaços" e "Trocar senha"
-- **AND** não mostra "Usuários", "Unidades", "Tipos de espaço", "Recursos", "Administradores" nem "Parâmetros"
+- **AND** não mostra "Usuários", "Unidades", "Tipos de espaço", "Recursos", "Penalidades", "Administradores" nem "Parâmetros"
 
 #### Scenario: Menu do admin secundário
 - **WHEN** um admin secundário faz login
-- **THEN** o menu mostra "Início", "Buscar espaços", "Minhas reservas", "Aprovações", "Reservas da unidade", "Espaços", "Usuários", "Unidades", "Tipos de espaço", "Recursos" e "Trocar senha"
+- **THEN** o menu mostra "Início", "Buscar espaços", "Minhas reservas", "Aprovações", "Reservas da unidade", "Espaços", "Usuários", "Unidades", "Tipos de espaço", "Recursos", "Penalidades" e "Trocar senha"
 - **AND** não mostra "Administradores" nem "Parâmetros"
 
 #### Scenario: Endereço digitado
 - **GIVEN** Ana está logada como `ALUNO`
-- **WHEN** Ana abre diretamente o endereço da página de unidades, de espaços ou de reservas da unidade
+- **WHEN** Ana abre diretamente o endereço da página de unidades, de espaços, de reservas da unidade ou de penalidades
 - **THEN** ela é levada para "Início"
 
 #### Scenario: Coordenador abre a página de tipos
