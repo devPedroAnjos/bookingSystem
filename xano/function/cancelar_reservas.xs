@@ -12,6 +12,9 @@
 // entradas de fila ativas da conta ou dos espaços (ENCERRAR_FILA com o ator e o motivo, e a unidade
 // atual do espaço, que na mudança de unidade ainda é a de origem); depois, em todos os modos,
 // processar_fila avisa as filas das vagas liberadas na mesma transação.
+// C11 (design D3): modo "bloqueio" (espacos_ids com o espaço, inicio, fim e bloqueio_id), motivo
+// BLOQUEIO. Cancela as reservas sobrepostas que ainda não começaram, grava o bloqueio_id e encerra
+// só as entradas de fila sobrepostas ao período. Devolve também entradas_encerradas (todos os modos).
 // Cancela as reservas selecionadas e devolve a quantidade e o texto para a mensagem da rota
 function cancelar_reservas {
   input {
@@ -23,6 +26,11 @@ function cancelar_reservas {
     json? reservas?
 
     int? deslocada_por_reserva_id?
+
+    // Modo bloqueio: o bloqueio gravado e o período dele
+    int? bloqueio_id?
+    int? inicio?
+    int? fim?
     text motivo
     text? motivo_detalhe?
     text? motivo_descricao?
@@ -56,6 +64,8 @@ function cancelar_reservas {
             modo       : $input.modo
             usuario_id : $input.usuario_id
             espacos_ids: $input.espacos_ids
+            inicio     : $input.inicio
+            fim        : $input.fim
             agora      : $input.agora
           }
         } as $selecao
@@ -72,6 +82,18 @@ function cancelar_reservas {
   
     var $descricao {
       value = null
+    }
+
+    var $bloqueio {
+      value = null
+    }
+
+    conditional {
+      if ($input.modo == "bloqueio") {
+        var.update $bloqueio {
+          value = $input.bloqueio_id
+        }
+      }
     }
   
     conditional {
@@ -124,6 +146,7 @@ function cancelar_reservas {
             cancelado_por_id   : $input.ator_id
             cancelado_em       : now
             deslocada_por_reserva_id: $deslocada_por
+            bloqueio_id        : $bloqueio
           }
         } as $cancelada
 
@@ -144,6 +167,13 @@ function cancelar_reservas {
           if ($input.modo == "prioridade") {
             var.update $dados_depois {
               value = $dados_depois|set:"deslocada_por_reserva_id":$deslocada_por
+            }
+          }
+
+          // O cancelamento por bloqueio registra qual bloqueio o causou (C11)
+          elseif ($input.modo == "bloqueio") {
+            var.update $dados_depois {
+              value = $dados_depois|set:"bloqueio_id":$bloqueio
             }
           }
         }
@@ -196,6 +226,22 @@ function cancelar_reservas {
               value = $entradas_dos_espacos
             }
           }
+        }
+      }
+
+      // C11: só as entradas do espaço cujo intervalo se sobrepõe ao bloqueio (encostado não conta)
+      elseif ($input.modo == "bloqueio") {
+        var $ids_espacos_bloqueio {
+          value = ($input.espacos_ids|first_notnull:[])|map:($$|to_int)
+        }
+
+        db.query entrada_fila {
+          where = $db.entrada_fila.espaco_id in $ids_espacos_bloqueio && ($db.entrada_fila.status == "AGUARDANDO" || $db.entrada_fila.status == "NOTIFICADA") && $db.entrada_fila.inicio < $input.fim && $db.entrada_fila.fim > $input.inicio
+          return = {type: "list"}
+        } as $entradas_sobrepostas
+
+        var.update $entradas_a_encerrar {
+          value = $entradas_sobrepostas
         }
       }
     }
@@ -277,10 +323,15 @@ function cancelar_reservas {
       }
     }
   
+    var $entradas_encerradas {
+      value = $entradas_a_encerrar|count
+    }
+
     var $resultado {
       value = {}
         |set:"quantidade":$quantidade
         |set:"texto":$texto
+        |set:"entradas_encerradas":$entradas_encerradas
     }
   }
 

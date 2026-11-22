@@ -7,6 +7,7 @@ import reflex as rx
 
 from bookingSystem.pages.administradores import administradores
 from bookingSystem.pages.aprovacoes import aprovacoes
+from bookingSystem.pages.bloqueios import bloqueios
 from bookingSystem.pages.buscar import buscar
 from bookingSystem.pages.cadastro import cadastro
 from bookingSystem.pages.espacos import espacos
@@ -28,6 +29,7 @@ from bookingSystem.state.auth_state import (
     ROTA_TROCAR_SENHA,
     AuthState,
 )
+from bookingSystem.state.bloqueios_state import BloqueiosState
 from bookingSystem.state.busca_state import BuscaState
 from bookingSystem.state.contas_state import ContasState
 from bookingSystem.state.espacos_state import EspacosState
@@ -107,6 +109,12 @@ app.add_page(
     route="/espacos",
     title="Espaços | BookingSystem",
     on_load=[AuthState.exigir_gestor, EspacosState.abrir, FilaState.carregar],
+)
+app.add_page(
+    bloqueios,
+    route="/bloqueios",
+    title="Bloqueios | BookingSystem",
+    on_load=[AuthState.exigir_gestor, BloqueiosState.abrir, FilaState.carregar],
 )
 app.add_page(
     tipos_espaco,

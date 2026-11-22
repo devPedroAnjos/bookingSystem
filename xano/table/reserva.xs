@@ -1,6 +1,7 @@
 // Reserva de um espaço por um usuário (C6, design D1). Nunca é excluída; só muda de situação.
-// Subconjunto do DER: serie_id (C12), bloqueio_id (C11) e check-in (C10) entram nas changes que
-// os usarem. A decisão da aprovação entrou na C7 (design D1) e o deslocamento, na C8 (design D1).
+// Subconjunto do DER: serie_id (reserva recorrente, fora da v1) fica de fora. A decisão da
+// aprovação entrou na C7 (design D1), o deslocamento na C8 (design D1), o check-in na C10 e o
+// bloqueio_id na C11 (design D1).
 table reserva {
   auth = false
 
@@ -91,6 +92,11 @@ table reserva {
 
     // Instante do check-in feito pelo dono (C10, design D1); vazio sem check-in
     timestamp? check_in_em?
+
+    // Bloqueio que cancelou esta reserva (C11, design D1); só no motivo BLOQUEIO
+    int? bloqueio_id? {
+      table = "bloqueio"
+    }
   }
 
   index = [

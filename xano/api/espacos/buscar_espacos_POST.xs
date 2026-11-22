@@ -3,7 +3,9 @@
 // tipo, capacidade mínima, recursos (todos) e data com hora de início e fim (juntos). Com horário,
 // cada espaço diz se o pedido está dentro das regras do tipo e os motivos, e se está ocupado por
 // reserva PENDENTE ou CONFIRMADA sobreposta (C6, D13), sem dizer quem ocupa. É informativo: a
-// reserva confere tudo de novo. Bloqueios entram na C11. POST para receber listas no corpo (D5).
+// reserva confere tudo de novo. POST para receber listas no corpo (D5).
+// C11 (design D6): bloqueado diz se há bloqueio ATIVO sobreposto ao intervalo; o espaço bloqueado
+// aparece ocupado, não deslocável, sem fila, e sem o motivo nem o autor do bloqueio.
 // C8 (design D7): o espaço ocupado e dentro das regras diz se quem busca poderia deslocar a
 // ocupação (avaliar_deslocamento, a mesma regra da criação) e quantas reservas seriam deslocadas;
 // livre ou fora das regras: deslocavel falso e deslocaria 0. Só a quantidade sai, nunca quem.
@@ -86,6 +88,11 @@ query buscar_espacos verb=POST {
     }
 
     var $ids_na_fila {
+      value = []
+    }
+
+    // C11: espaços com bloqueio ativo sobreposto ao intervalo
+    var $ids_bloqueados {
       value = []
     }
 
@@ -188,6 +195,16 @@ query buscar_espacos verb=POST {
 
         var.update $ids_na_fila {
           value = $entradas_do_usuario|map:$$.espaco_id|unique
+        }
+
+        // C11 (D6): uma consulta para todos os espaços (encostado não conta)
+        db.query bloqueio {
+          where = $db.bloqueio.status == "ATIVO" && $db.bloqueio.inicio < $fim && $db.bloqueio.fim > $inicio
+          return = {type: "list"}
+        } as $bloqueios_sobrepostos
+
+        var.update $ids_bloqueados {
+          value = $bloqueios_sobrepostos|map:$$.espaco_id|unique
         }
 
         function.run nivel_do_papel {
@@ -339,12 +356,16 @@ query buscar_espacos verb=POST {
                       value = $ids_retidos|in:$espaco.id
                     }
 
+                    var $bloqueado {
+                      value = $ids_bloqueados|in:$espaco.id
+                    }
+
                     var $ocupado {
-                      value = $ocupado_por_reserva || $retido
+                      value = $ocupado_por_reserva || $retido || $bloqueado
                     }
 
                     // C8 (D7): só o ocupado e dentro das regras pode ser deslocável; a vaga retida
-                    // nunca é deslocável (C9, D9)
+                    // nunca é deslocável (C9, D9), nem o bloqueio (C11)
                     var $deslocavel {
                       value = false
                     }
@@ -354,7 +375,7 @@ query buscar_espacos verb=POST {
                     }
 
                     conditional {
-                      if ($ocupado && $validacao.dentro_das_regras && !$retido) {
+                      if ($ocupado && $validacao.dentro_das_regras && !$retido && !$bloqueado) {
                         var $conflitantes {
                           value = $sobrepostas_todas|filter:($$.espaco_id == $espaco.id)
                         }
@@ -407,7 +428,7 @@ query buscar_espacos verb=POST {
                     }
 
                     conditional {
-                      if ($ocupado && $validacao.dentro_das_regras && !$deslocavel && !$na_fila) {
+                      if ($ocupado && $validacao.dentro_das_regras && !$deslocavel && !$na_fila && !$bloqueado) {
                         var $reserva_propria {
                           value = $sobrepostas_todas|some:($$.espaco_id == $espaco.id && $$.usuario_id == $ator.id)
                         }
@@ -444,6 +465,7 @@ query buscar_espacos verb=POST {
                         |set:"dentro_das_regras":$validacao.dentro_das_regras
                         |set:"motivos":$validacao.motivos
                         |set:"ocupado":$ocupado
+                        |set:"bloqueado":$bloqueado
                         |set:"deslocavel":$deslocavel
                         |set:"deslocaria":$deslocaria
                         |set:"na_fila":$na_fila

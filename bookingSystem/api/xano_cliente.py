@@ -608,6 +608,41 @@ async def mover_espaco(
     )
 
 
+# ---------- Bloqueios (C11) ----------
+
+
+async def listar_bloqueios(
+    token: str, unidade_id: int | None = None
+) -> list[dict[str, Any]]:
+    """Bloqueios ativos que ainda não terminaram, no escopo do usuário."""
+    filtros = {} if unidade_id is None else {"unidade_id": unidade_id}
+    return await _requisitar(
+        "GET", _url(_ESPACOS, "listar_bloqueios"), token, params=filtros
+    )
+
+
+async def criar_bloqueio(token: str, dados: dict[str, Any]) -> dict[str, Any]:
+    """Bloqueia um espaço por um período.
+
+    `dados`: espaco_id, tipo, motivo, data_inicio, hora_inicio, data_fim e
+    hora_fim. A resposta traz a mensagem e quantas reservas e entradas de fila
+    foram afetadas.
+    """
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "criar_bloqueio"), token, dados
+    )
+
+
+async def remover_bloqueio(token: str, bloqueio_id: int) -> dict[str, Any]:
+    """Remove um bloqueio ativo, sem restaurar reservas nem filas."""
+    return await _requisitar(
+        "POST",
+        _url(_ESPACOS, "remover_bloqueio"),
+        token,
+        {"bloqueio_id": bloqueio_id},
+    )
+
+
 # ---------- Regras do tipo e busca ----------
 
 

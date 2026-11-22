@@ -6,17 +6,25 @@
 // CONFIRMADA em andamento, que impedem a ação; devolve quantas são e o maior fim entre elas.
 // C10 (D2): a NAO_COMPARECEU efetiva não está em andamento e não é cancelada. A reserva com check-in
 // que ainda não começou é cancelada como qualquer outra (cancelamento automático, sem falta).
+// C11 (design D3): modo "bloqueio" (espacos_ids com o espaço, inicio e fim do bloqueio): só as
+// reservas sobrepostas ao período (encostado não conta). A CONFIRMADA em andamento sobreposta vai
+// para em_andamento, como no modo espaço; só são canceladas as que ainda não começaram, porque a
+// pendente cujo início já chegou expirou (C7) e não é cancelada pelo bloqueio.
 // Devolve as reservas a cancelar, a quantidade em andamento e o fim da última em andamento
 function selecionar_reservas_a_cancelar {
   input {
     text modo
     int? usuario_id?
     json? espacos_ids?
+
+    // Modo bloqueio: o período do bloqueio, em ms
+    int? inicio?
+    int? fim?
     int agora
   }
 
   stack {
-    precondition ($input.modo == "conta" || $input.modo == "espaco") {
+    precondition ($input.modo == "conta" || $input.modo == "espaco" || $input.modo == "bloqueio") {
       error = "Modo de seleção de reservas inválido."
     }
 
@@ -57,11 +65,39 @@ function selecionar_reservas_a_cancelar {
         // Tipo ou unidade sem espaços: nada a consultar
         conditional {
           if (($ids|count) > 0) {
-            db.query reserva {
-              where = $db.reserva.espaco_id in $ids && $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.fim > $agora
-              sort = {inicio: "asc"}
-              return = {type: "list"}
-            } as $dos_espacos
+            var $dos_espacos {
+              value = []
+            }
+
+            conditional {
+              if ($input.modo == "bloqueio") {
+                precondition (!($input.inicio|is_null) && !($input.fim|is_null)) {
+                  error = "Informe o período do bloqueio."
+                }
+
+                db.query reserva {
+                  where = $db.reserva.espaco_id in $ids && $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.fim > $agora && $db.reserva.inicio < $input.fim && $db.reserva.fim > $input.inicio
+                  sort = {inicio: "asc"}
+                  return = {type: "list"}
+                } as $sobrepostas
+
+                var.update $dos_espacos {
+                  value = $sobrepostas
+                }
+              }
+
+              else {
+                db.query reserva {
+                  where = $db.reserva.espaco_id in $ids && $db.reserva.status in ["PENDENTE", "CONFIRMADA"] && $db.reserva.fim > $agora
+                  sort = {inicio: "asc"}
+                  return = {type: "list"}
+                } as $nao_terminadas
+
+                var.update $dos_espacos {
+                  value = $nao_terminadas
+                }
+              }
+            }
 
             // C10 (D2): a confirmada sem check-in cuja janela fechou é NAO_COMPARECEU pela situação
             // efetiva; ela não está em andamento e não é cancelada (a falta continua valendo)
@@ -97,8 +133,9 @@ function selecionar_reservas_a_cancelar {
                     }
                   }
 
-                  // Pendente já iniciada não impede a ação e é cancelada junto (D10)
-                  elseif (!$sem_comparecimento) {
+                  // Pendente já iniciada não impede a ação e é cancelada junto (D10); no modo
+                  // bloqueio, ela expirou e fica de fora (C11)
+                  elseif (!$sem_comparecimento && ($input.modo == "espaco" || $reserva.inicio > $agora)) {
                     var.update $reservas {
                       value = $reservas|push:$reserva
                     }

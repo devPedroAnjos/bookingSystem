@@ -141,7 +141,11 @@ query criar_reserva verb=POST {
           }
         } as $limite_ok
 
-        // 8. (Ponto de extensão C11: recusar horário com bloqueio ativo sobreposto.)
+        // 8. Bloqueio ativo sobreposto (C11, design D4): recusa antes do conflito, então o
+        // deslocamento nunca passa por cima de um bloqueio
+        function.run exigir_sem_bloqueio {
+          input = {espaco_id: $espaco.id, inicio: $inicio, fim: $fim}
+        } as $sem_bloqueio
 
         // 9. Conflito (D7): ocupação sobreposta no mesmo espaço; encostadas não conflitam. Ocupam
         // a confirmada e a pendente que ainda não começou (C7, D2) e a vaga retida pela fila no

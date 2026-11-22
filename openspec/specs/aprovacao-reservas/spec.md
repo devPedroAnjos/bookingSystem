@@ -195,7 +195,7 @@ Coordenadores e admins DEVEM (MUST) poder listar as reservas dos espaços no seu
 - **THEN** o sistema responde com acesso negado
 
 ### Requirement: Filtros de situação e período da listagem
-O filtro de situação DEVE (MUST) aceitar pendentes (padrão), confirmadas, recusadas, expiradas (gravadas ou vencidas sem gravação), canceladas ou todas, e recusar qualquer outro valor. O período DEVE aceitar datas AAAA-MM-DD existentes, com a data final igual ou posterior à inicial, e recusar o resto. As pendentes vêm da mais próxima para a mais distante; as demais situações, inclusive todas, da mais recente para a mais antiga.
+O filtro de situação DEVE (MUST) aceitar pendentes (padrão), confirmadas, concluídas, não compareceu, recusadas, expiradas, canceladas ou todas, e recusar qualquer outro valor. As situações vencidas valem pela situação efetiva, gravadas ou não: expiradas, não compareceu e concluídas. O período DEVE aceitar datas AAAA-MM-DD existentes, com a data final igual ou posterior à inicial, e recusar o resto. As pendentes vêm da mais próxima para a mais distante; as demais situações, inclusive todas, da mais recente para a mais antiga.
 
 #### Scenario: Situação inválida
 - **WHEN** Rui filtra a situação "ARQUIVADA"
@@ -210,6 +210,17 @@ O filtro de situação DEVE (MUST) aceitar pendentes (padrão), confirmadas, rec
 - **WHEN** Rui filtra o período só de quarta-feira, com a situação todas
 - **THEN** a reserva aparece
 
+#### Scenario: Não compareceu antes da gravação
+- **GIVEN** a janela da reserva `CONFIRMADA` de Ana em "LAB-01" fechou às 14h15 sem check-in, ainda sem gravação
+- **WHEN** Rui filtra as reservas de "Paulista" com a situação não compareceu, às 14h30
+- **THEN** a reserva de Ana aparece
+- **AND** ela não aparece quando Rui filtra as confirmadas
+
+#### Scenario: Concluídas
+- **GIVEN** Ana fez check-in da reserva das 14h00 às 15h00 em "LAB-01"
+- **WHEN** Rui filtra as concluídas de "Paulista" às 15h30
+- **THEN** a reserva de Ana aparece, com o check-in
+
 ### Requirement: Tamanho da listagem
 A listagem DEVE (MUST) devolver no máximo 200 reservas por consulta e indicar quando havia mais. A tela DEVE avisar que só as 200 primeiras foram mostradas e sugerir refinar por período ou espaço.
 
@@ -220,7 +231,7 @@ A listagem DEVE (MUST) devolver no máximo 200 reservas por consulta e indicar q
 - **AND** a tela mostra o aviso para refinar a busca
 
 ### Requirement: Dados de cada reserva da unidade
-Cada reserva listada DEVE (MUST) trazer: id; dono (nome, e-mail institucional e papel no momento da criação, pelo nível de prioridade); espaço (nome e código), unidade e tipo; data e horas de início e fim em America/Sao_Paulo; situação efetiva; instante de criação; na decisão, quem decidiu, quando e o motivo da recusa; no cancelamento, o motivo e quem cancelou.
+Cada reserva listada DEVE (MUST) trazer: id; dono (nome, e-mail institucional e papel no momento da criação, pelo nível de prioridade); espaço (nome e código), unidade e tipo; data e horas de início e fim em America/Sao_Paulo; situação efetiva; instante de criação; na decisão, quem decidiu, quando e o motivo da recusa; no cancelamento, o motivo e quem cancelou; e o instante do check-in, quando houver.
 
 #### Scenario: Pendente com o dono identificado
 - **GIVEN** Ana, aluna, tem uma reserva `PENDENTE` em "LAB-01"
@@ -231,6 +242,16 @@ Cada reserva listada DEVE (MUST) trazer: id; dono (nome, e-mail institucional e 
 - **GIVEN** Rui recusou uma reserva com o motivo "Laboratório em manutenção"
 - **WHEN** o admin filtra as recusadas de "Paulista"
 - **THEN** a reserva traz Rui como quem decidiu, o instante e o motivo
+
+#### Scenario: Confirmada com check-in
+- **GIVEN** Ana fez check-in às 13h55 da reserva `CONFIRMADA` das 14h00 em "LAB-01"
+- **WHEN** Rui filtra as confirmadas de "Paulista" às 14h10
+- **THEN** a reserva traz o check-in às 13h55
+
+#### Scenario: Cancelada tardiamente
+- **GIVEN** Ana cancelou tardiamente a reserva dela em "LAB-01"
+- **WHEN** Rui filtra as canceladas de "Paulista"
+- **THEN** a reserva traz o motivo de cancelamento tardio e Ana como quem cancelou
 
 ### Requirement: Dados que a listagem da unidade não expõe
 A listagem NÃO DEVE (MUST NOT) trazer dados pessoais do dono além de nome, e-mail institucional e nível na criação, nem o motivo da inativação de conta. Na reserva cancelada por inativação de conta, ela DEVE (MUST) mostrar o motivo do cancelamento sem identificar quem cancelou.
