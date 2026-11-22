@@ -67,6 +67,9 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         )
     if "ocupado" not in espaco:
         ocupacao = ""
+    elif espaco.get("bloqueado"):
+        # Bloqueio ativo no horário (C11): o Xano já o marca não deslocável e sem fila
+        ocupacao = "Bloqueado"
     else:
         ocupacao = "Ocupado" if espaco["ocupado"] else "Livre"
     return {

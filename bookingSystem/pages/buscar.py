@@ -128,8 +128,11 @@ def linha_resultado(espaco: rx.Var[dict[str, str]]) -> rx.Component:
                     ),
                     rx.badge(
                         espaco["ocupacao"],
-                        color_scheme=rx.cond(
-                            espaco["ocupacao"] == "Livre", "green", "gray"
+                        color_scheme=rx.match(
+                            espaco["ocupacao"],
+                            ("Livre", "green"),
+                            ("Bloqueado", "red"),
+                            "gray",
                         ),
                     ),
                     spacing="1",

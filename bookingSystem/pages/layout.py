@@ -30,6 +30,7 @@ def menu() -> rx.Component:
                 item_menu("Reservas da unidade", "/reservas-unidade"),
             ),
             rx.cond(AuthState.e_gestor, item_menu("Espaços", "/espacos")),
+            rx.cond(AuthState.e_gestor, item_menu("Bloqueios", "/bloqueios")),
             rx.cond(AuthState.e_admin, item_menu("Usuários", "/usuarios")),
             rx.cond(AuthState.e_admin, item_menu("Unidades", "/unidades")),
             rx.cond(

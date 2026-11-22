@@ -45,6 +45,13 @@ MOTIVOS_CANCELAMENTO = {
     "ESPACO_INDISPONIVEL": "espaço indisponível",
 }
 
+# Tipos de bloqueio (C11); os códigos são validados no Xano
+TIPOS_BLOQUEIO = {
+    "MANUTENCAO": "Manutenção",
+    "EVENTO": "Evento",
+    "FERIADO": "Feriado",
+}
+
 # Situações de uma entrada de fila de espera (C9); o Xano devolve a situação efetiva
 SITUACOES_FILA = {
     "AGUARDANDO": "Aguardando vaga",
@@ -81,11 +88,16 @@ def texto_cancelamento(reserva: dict) -> str:
     """Motivo do cancelamento para a tela; na desativação, com o motivo dela.
 
     Mover o espaço e trocar o tipo não têm motivo próprio (detalhe vazio), e a
-    inativação de conta nunca traz o motivo (spec situacao-conta).
+    inativação de conta nunca traz o motivo (spec situacao-conta). O bloqueio
+    mostra o tipo e o motivo dele, sem quem o criou (C11).
     """
     motivo = reserva.get("motivo_cancelamento")
     if not motivo:
         return ""
+    if motivo == "BLOQUEIO" and reserva.get("bloqueio_tipo"):
+        tipo = TIPOS_BLOQUEIO.get(reserva["bloqueio_tipo"], reserva["bloqueio_tipo"])
+        motivo_bloqueio = reserva.get("bloqueio_motivo") or ""
+        return f"Cancelada por bloqueio: {tipo} — {motivo_bloqueio}"
     texto = MOTIVOS_CANCELAMENTO.get(motivo, motivo)
     detalhe = reserva.get("motivo_detalhe")
     if detalhe == OUTRO and reserva.get("motivo_descricao"):
