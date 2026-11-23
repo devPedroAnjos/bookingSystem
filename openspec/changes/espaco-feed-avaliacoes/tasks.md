@@ -98,12 +98,12 @@
 
 ## 5. Foto de capa
 
-- [ ] 5.1 Sondas C3 e C4 (tamanho e `mime` do input `file?`, `storage.delete_file`, URL do campo `image`), registradas no design. Verificação: sonda no sandbox e registro.
-- [ ] 5.2 Campo `foto_capa` em `espaco.xs` e `foto_tamanho_max_kb` em `configuracao_geral.xs`, com o padrão 1024 no `bootstrap` e os campos em `parametros_GET` e `parametros_POST`. Verificação: validação do MCP.
-- [ ] 5.3 Rotas `definir_foto_espaco` e `remover_foto_espaco` (D7), com a auditoria (D9). `foto_url` em `buscar_espacos`, `detalhe_espaco` e `geridos`, e `foto_tamanho_max_kb` em `geridos` (D8). Verificação: validação do MCP.
-- [ ] 5.4 Publicação com `--dry-run`, mostrada ao usuário, e só com aprovação. Rodar o `bootstrap` e conferir com `pull`. Verificação: dry-run mostrado, aprovação e pull igual.
-- [ ] 5.5 Testes da API no sandbox, cobrindo:
-  - envio pelo coordenador e pelo admin; troca, com a URL antiga deixando de abrir; remoção; remoção sem foto;
+- [x] 5.1 Sondas C3 e C4 (tamanho e `mime` do input `file?`, `storage.delete_file`, URL do campo `image`), registradas no design. Verificação: sonda no sandbox e registro.
+- [x] 5.2 Campo `foto_capa` em `espaco.xs` e `foto_tamanho_max_kb` em `configuracao_geral.xs`, com o padrão 1024 no `bootstrap` e os campos em `parametros_GET` e `parametros_POST`. Verificação: validação do MCP.
+- [x] 5.3 Rotas `definir_foto_espaco` e `remover_foto_espaco` (D7), com a auditoria (D9). `foto_url` em `buscar_espacos`, `detalhe_espaco` e `geridos`, e `foto_tamanho_max_kb` em `geridos` (D8). Verificação: validação do MCP.
+- [x] 5.4 Publicação com `--dry-run`, mostrada ao usuário, e só com aprovação. Rodar o `bootstrap` e conferir com `pull`. Verificação: dry-run mostrado, aprovação e pull igual.
+- [x] 5.5 Testes da API no sandbox, cobrindo:
+  - envio pelo coordenador e pelo admin; troca, com o arquivo anterior apagado (404 se nunca aberto; a cópia de uma foto já aberta pode continuar, decisão 38); remoção; remoção sem foto;
   - arquivo acima do limite; PDF e GIF; arquivo vazio e envio sem arquivo;
   - duas trocas simultâneas no mesmo espaço;
   - coordenador de outra unidade e aluno; sem token; senha provisória;
@@ -113,9 +113,9 @@
   - tamanho 0 recusado nos parâmetros.
 
   Verificação: tabela de casos e o que não foi testado.
-- [ ] 5.6 Reflex: `definir_foto_espaco` e `remover_foto_espaco` no cliente, com multipart pelo `httpx`. Diálogo "Foto" em "Espaços" (D17), foto nos cartões e na página do espaço, e tamanho máximo em "Parâmetros". Verificação: compila.
-- [ ] 5.7 `docs/project-overview.md` (§5: foto sai de "fora do escopo"; §6: foto no feed; §10: `DEFINIR_FOTO_ESPACO` e `REMOVER_FOTO_ESPACO`; §11: "fotos dos espaços" sai dos cortes), `docs/domain-model.md` (§2.6, DER e A.1: `foto_capa` e `foto_tamanho_max_kb`) e `AGENTS.md` §8 (exceção da foto pública, decisão 3). Verificação: `git diff` dos três arquivos mostrado ao usuário.
-- [ ] 5.8 Testes pelo Playwright:
+- [x] 5.6 Reflex: `definir_foto_espaco` e `remover_foto_espaco` no cliente, com multipart pelo `httpx`. Diálogo "Foto" em "Espaços" (D17), foto nos cartões e na página do espaço, e tamanho máximo em "Parâmetros". Verificação: compila.
+- [x] 5.7 `docs/project-overview.md` (§5: foto sai de "fora do escopo"; §6: foto no feed; §10: `DEFINIR_FOTO_ESPACO` e `REMOVER_FOTO_ESPACO`; §11: "fotos dos espaços" sai dos cortes), `docs/domain-model.md` (§2.6, DER e A.1: `foto_capa` e `foto_tamanho_max_kb`) e `AGENTS.md` §8 (exceção da foto pública, decisão 3). Verificação: `git diff` dos três arquivos mostrado ao usuário.
+- [x] 5.8 Testes pelo Playwright:
   - enviar, trocar e remover pela tela;
   - recusa de tamanho no diálogo;
   - foto no cartão do feed e na página do espaço;
@@ -123,7 +123,7 @@
   - tamanho máximo em "Parâmetros".
 
   Verificação: capturas ou relato.
-- [ ] 5.9 Revisão do guardian do grupo 5 antes de marcar as tarefas.
+- [x] 5.9 Revisão do guardian do grupo 5 antes de marcar as tarefas.
 
 ## 6. Revisão final
 

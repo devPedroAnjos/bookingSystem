@@ -136,7 +136,7 @@ Define, para um tipo de espaço e um papel, **se o papel pode reservar** e **se 
 
 Local físico reservável.
 
-**Principais informações:** nome; código/identificação; capacidade; localização (bloco, andar); descrição; ativo.
+**Principais informações:** nome; código/identificação; capacidade; localização (bloco, andar); descrição; ativo; foto de capa (opcional).
 
 **Relacionamentos:** pertence a uma unidade e a um tipo; dispõe de vários recursos; recebe reservas, bloqueios, séries e entradas de fila.
 
@@ -146,6 +146,7 @@ Local físico reservável.
 - Espaços nunca são excluídos: só desativados e reativados.
 - **Disponibilidade derivada:** o espaço só é reservável quando ele, a unidade dele e o tipo dele estão ativos. Espaço não reservável não aparece na busca e não aceita novas reservas.
 - Quem gere o espaço troca o tipo dele (só para tipo ativo). Só o admin move o espaço para outra unidade ativa, sem colisão de código no destino.
+- Quem gere o espaço envia, troca e remove uma foto de capa (JPEG, PNG ou WEBP, até `foto_tamanho_max_kb`). A foto fica numa URL pública, com a marca d'água do plano gratuito do Xano. Trocar ou remover apaga o arquivo anterior, mas a cópia com marca d'água de uma foto já aberta pode continuar acessível (change `espaco-feed-avaliacoes`, decisão 38).
 - Desativar o espaço (com um motivo da lista de desativação), trocar o tipo dele ou movê-lo de unidade é recusado enquanto houver reserva confirmada em andamento no espaço; sem isso, as reservas dele que ainda não terminaram são canceladas (§2.9). Editar outros campos não afeta reservas, e reativar não as restaura.
 
 ### 2.7 Recurso e Espaço-Recurso
@@ -331,6 +332,7 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 | Tempo mínimo útil da fila (`tempo_minimo_fila_minutos`): o fechamento da fila é o corte menos este valor | 30 min |
 | Antecedência mínima para deslocar por prioridade (vale para a nova reserva e para cada deslocada) | 120 min |
 | Prazo para avaliar (`prazo_avaliacao_dias`), contado do término da reserva | 7 dias |
+| Tamanho máximo da foto de capa (`foto_tamanho_max_kb`) | 1024 KB |
 | Período máximo de recorrência | 6 meses |
 | Máximo de coordenadores por unidade | 4 |
 | Máximo de unidades por coordenador | 2 |
@@ -554,6 +556,7 @@ erDiagram
         string localizacao
         string descricao
         bool ativo
+        image foto_capa "opcional; pública"
     }
     RECURSO {
         int id PK
@@ -699,6 +702,7 @@ erDiagram
         int tempo_minimo_fila_minutos
         int prazo_deslocamento_minutos
         int prazo_avaliacao_dias
+        int foto_tamanho_max_kb
         int max_meses_recorrencia
         int max_coordenadores_unidade
         int max_unidades_coordenador
@@ -732,7 +736,7 @@ erDiagram
 | `contestacao` | `penalidade_id` único. |
 | `avaliacao` | `reserva_id` único; `nota` inteira entre 1 e 5; `comentario` opcional, até 500 caracteres. Nunca editada nem excluída. |
 | `log_auditoria` | Somente inserção. |
-| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um; `prazo_cancelamento_minutos >= 1`; `prazo_avaliacao_dias >= 1`. |
+| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um; `prazo_cancelamento_minutos >= 1`; `prazo_avaliacao_dias >= 1`; `foto_tamanho_max_kb >= 1`. |
 
 ### A.2 Índices recomendados
 

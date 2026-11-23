@@ -11,7 +11,7 @@ Quem tem escopo sobre a unidade do espaço (admin em qualquer unidade, coordenad
 #### Scenario: Troca de foto
 - **GIVEN** "LAB-01" já tem uma foto de capa
 - **WHEN** o admin envia outra foto para "LAB-01"
-- **THEN** "LAB-01" passa a ter a nova foto e a URL da anterior deixa de abrir
+- **THEN** "LAB-01" passa a ter a nova foto, e o arquivo da anterior é apagado do armazenamento e deixa de ser referenciado pelo espaço
 
 #### Scenario: Arquivo grande demais
 - **GIVEN** o tamanho máximo da foto é de 1024 KB
@@ -37,7 +37,7 @@ Quem tem escopo sobre a unidade do espaço DEVE (MUST) poder remover a foto de c
 #### Scenario: Remover a foto
 - **GIVEN** "LAB-01" tem foto de capa
 - **WHEN** Rui remove a foto de "LAB-01"
-- **THEN** "LAB-01" fica sem foto e a URL antiga deixa de abrir
+- **THEN** "LAB-01" fica sem foto, e o arquivo é apagado do armazenamento
 
 #### Scenario: Espaço sem foto
 - **WHEN** Rui tenta remover a foto de um espaço que não tem foto
@@ -54,6 +54,11 @@ A foto de capa DEVE (MUST) ser servida numa URL pública, que abre sem autentica
 #### Scenario: Envio sem autenticação
 - **WHEN** alguém envia uma foto sem token
 - **THEN** o sistema responde com não autenticado
+
+#### Scenario: Cópia de foto já aberta
+- **GIVEN** a foto de "LAB-01" já foi aberta pela URL pública, e o Xano gerou a cópia com marca d'água
+- **WHEN** a foto é trocada ou removida
+- **THEN** o arquivo original é apagado, e a cópia com marca d'água pode continuar acessível pela URL antiga, por limitação do armazenamento do plano gratuito
 
 #### Scenario: Senha provisória
 - **GIVEN** Rui está com senha provisória

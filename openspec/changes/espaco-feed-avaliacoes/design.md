@@ -170,6 +170,7 @@ A recusa mostra "Espaço não encontrado" com o link para a Início.
 ## Risks / Trade-offs
 
 - [Banda de 1 GB do plano gratuito se esgota com muitas fotos grandes] → teto padrão de 1024 KB por parâmetro, `loading="lazy"` nos cartões e aviso na tela para usar fotos leves. Se a banda acabar, a imagem não carrega e o cartão mostra a faixa colorida.
+- [Cópia com marca d'água sobrevive à troca e à remoção (achado da 5.5, decisão 38)] → quando a imagem já foi aberta, o Xano gera uma cópia derivada com marca d'água no storage, e a URL antiga continua redirecionando para ela depois do `storage.delete_file`. Imagem nunca aberta passa a 404. Não há operação de XanoScript para apagar a derivada. Aceito pelo usuário: a foto é institucional, pública e sem dados pessoais, e a tela avisa para não usar fotos com pessoas.
 - [Arquivo órfão público se a exclusão do anterior falhar depois do commit] → a falha é registrada na resposta e não desfaz a troca. O arquivo fica no armazenamento sem referência. Aceito, porque é a foto de uma sala.
 - [Sobrescrever as variáveis do Radix pode deixar ilegível algum componente antigo] → a verificação abre as 17 páginas com o Playwright e corrige com tokens.
 - [`unaccent` indisponível no pipeline do XanoScript] → só `to_lower`, com a limitação declarada.
