@@ -9,6 +9,7 @@ from bookingSystem.pages.componentes import (
     mensagem,
     seletor,
 )
+from bookingSystem.pages.feed import icone_tipo
 from bookingSystem.pages.layout import layout_autenticado
 from bookingSystem.state.auth_state import AuthState
 from bookingSystem.state.espacos_state import EspacosState
@@ -40,11 +41,30 @@ def situacao(espaco: rx.Var[dict[str, str]]) -> rx.Component:
     )
 
 
+def miniatura(espaco: rx.Var[dict[str, str]]) -> rx.Component:
+    """Foto de capa ou, sem foto, a faixa com o ícone do tipo (D17)."""
+    return rx.cond(
+        espaco["foto"] != "",
+        rx.image(src=espaco["foto"], width="56px", height="40px", object_fit="cover",
+                 border_radius="var(--bs-radius-sm)", loading="lazy", alt=espaco["nome"]),
+        rx.flex(icone_tipo(espaco["icone"], 18), width="56px", height="40px", align="center",
+                justify="center", background=espaco["cor"], border_radius="var(--bs-radius-sm)"),
+    )
+
+
 def linha_espaco(espaco: rx.Var[dict[str, str]]) -> rx.Component:
     return rx.table.row(
         rx.table.cell(
-            rx.text(espaco["nome"], weight="medium"),
-            rx.text(espaco["localizacao"], size="1"),
+            rx.hstack(
+                miniatura(espaco),
+                rx.vstack(
+                    rx.text(espaco["nome"], weight="medium"),
+                    rx.text(espaco["localizacao"], size="1"),
+                    spacing="0",
+                ),
+                align="center",
+                spacing="3",
+            ),
         ),
         rx.table.cell(espaco["codigo"]),
         rx.table.cell(espaco["unidade_nome"]),
@@ -65,6 +85,12 @@ def linha_espaco(espaco: rx.Var[dict[str, str]]) -> rx.Component:
                     size="1",
                     variant="soft",
                     on_click=EspacosState.abrir_recursos(espaco["id"]),
+                ),
+                rx.button(
+                    "Foto",
+                    size="1",
+                    variant="soft",
+                    on_click=EspacosState.abrir_foto(espaco),
                 ),
                 rx.cond(
                     espaco["ativo"] == "sim",
@@ -276,6 +302,91 @@ def dialogo_desativar() -> rx.Component:
     )
 
 
+def previa_cartao() -> rx.Component:
+    """Como o espaço aparece no feed com a foto atual (ou a faixa sem foto)."""
+    espaco = EspacosState.foto_espaco
+    return rx.box(
+        rx.cond(
+            espaco["foto"] != "",
+            rx.image(src=espaco["foto"], width="100%", height="120px", object_fit="cover",
+                     alt=espaco["nome"]),
+            rx.flex(icone_tipo(espaco["icone"]), height="96px", width="100%", align="center",
+                    justify="center", background=espaco["cor"]),
+        ),
+        rx.vstack(
+            rx.text(espaco["nome"], weight="bold"),
+            rx.text(espaco["codigo"] + " · " + espaco["unidade_nome"], size="1",
+                    color="var(--bs-ink-muted)"),
+            spacing="0",
+            padding="10px 12px",
+        ),
+        class_name="bs-cartao-espaco",
+        width="100%",
+    )
+
+
+def dialogo_foto() -> rx.Component:
+    espaco = EspacosState.foto_espaco
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Foto de capa de " + espaco["codigo"]),
+            rx.vstack(
+                rx.text("Prévia no feed", size="1", weight="bold", color="var(--bs-primary)"),
+                previa_cartao(),
+                rx.upload(
+                    rx.vstack(
+                        rx.icon("image-plus", size=22, color="var(--bs-primary)"),
+                        rx.text("Arraste uma foto ou clique para escolher", size="2"),
+                        rx.foreach(rx.selected_files("foto"), lambda nome: rx.text(nome, size="1", weight="bold")),
+                        align="center",
+                        spacing="1",
+                    ),
+                    id="foto",
+                    accept={"image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"], "image/webp": [".webp"]},
+                    max_files=1,
+                    multiple=False,
+                    border="1px dashed var(--bs-line-strong)",
+                    border_radius="var(--bs-radius-md)",
+                    padding="16px",
+                    width="100%",
+                ),
+                rx.text("JPEG, PNG ou WEBP, até " + espaco["foto_max_kb"] + " KB. A foto fica pública, "
+                        "com a marca d'água do Xano. Não use fotos com pessoas ou dados pessoais.",
+                        size="1", color="var(--bs-ink-muted)"),
+                mensagem(EspacosState.erro_foto, "red"),
+                rx.hstack(
+                    rx.cond(
+                        espaco["foto"] != "",
+                        rx.button("Remover foto", variant="soft", color_scheme="red", type="button",
+                                  on_click=EspacosState.pedir_remover_foto),
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(rx.button("Cancelar", variant="soft", type="button")),
+                    rx.button("Salvar foto", type="button",
+                              on_click=EspacosState.enviar_foto(rx.upload_files(upload_id="foto"))),
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        open=EspacosState.foto_aberta,
+        on_open_change=EspacosState.mudar_foto,
+    )
+
+
+def dialogo_remover_foto() -> rx.Component:
+    return dialogo(
+        EspacosState.remover_foto_aberta,
+        EspacosState.mudar_remover_foto,
+        "Remover a foto de " + EspacosState.foto_espaco["codigo"] + "?",
+        EspacosState.confirmar_remover_foto,
+        rx.text("O espaço volta a aparecer com a faixa colorida. O arquivo é apagado do "
+                "armazenamento.", size="2"),
+        botao="Remover foto",
+    )
+
+
 def espacos() -> rx.Component:
     return layout_autenticado(
         rx.heading("Espaços", size="5"),
@@ -293,5 +404,7 @@ def espacos() -> rx.Component:
         dialogo_recursos(),
         dialogo_mover(),
         dialogo_desativar(),
+        dialogo_foto(),
+        dialogo_remover_foto(),
         permitido=AuthState.e_gestor,
     )

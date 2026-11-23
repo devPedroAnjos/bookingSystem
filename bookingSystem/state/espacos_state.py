@@ -8,6 +8,7 @@ import reflex as rx
 
 from bookingSystem.api import xano_cliente as api
 from bookingSystem.state.auth_state import token_da_sessao, tratar_erro_api
+from bookingSystem.state.busca_state import cor_do_tipo, icone_do_tipo
 from bookingSystem.state.motivos import abrir_dialogo_com_impacto, ler_motivo
 
 MOTIVOS = {
@@ -37,7 +38,16 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         ),
         "reservavel": "sim" if espaco["reservavel"] else "nao",
         "motivos": ", ".join(MOTIVOS.get(m, m) for m in espaco["motivos"]),
+        # Foto de capa (espaco-feed-avaliacoes, D17): URL pública e o limite em vigor
+        "foto": api.url_publica(espaco.get("foto_url")),
+        "foto_max_kb": str(espaco.get("foto_tamanho_max_kb") or ""),
+        "icone": icone_do_tipo(espaco["tipo"]["nome"]),
+        "cor": cor_do_tipo(int(espaco["tipo"]["id"])),
     }
+
+
+# Formatos aceitos pelo Xano (D7); a checagem aqui é só usabilidade
+TIPOS_FOTO = {"image/jpeg", "image/png", "image/webp"}
 
 
 def _opcao(item: dict) -> dict[str, str]:
@@ -99,6 +109,12 @@ class EspacosState(rx.State):
     desativar_aberta: bool = False
     desativar_id: str = ""
     desativar_nome: str = ""
+
+    # Foto de capa (espaco-feed-avaliacoes, D17)
+    foto_aberta: bool = False
+    foto_espaco: dict[str, str] = {}
+    erro_foto: str = ""
+    remover_foto_aberta: bool = False
 
     _por_id: dict[str, dict] = {}
 
@@ -314,4 +330,68 @@ class EspacosState(rx.State):
         token = await token_da_sessao(self)
         return await self._executar(
             api.mover_espaco(token, int(self.mover_espaco_id), int(destino))
+        )
+
+    # ---------- foto de capa (espaco-feed-avaliacoes, D17) ----------
+
+    @rx.event
+    def abrir_foto(self, espaco: dict):
+        self._limpar_mensagens()
+        self.erro_foto = ""
+        self.foto_espaco = espaco
+        self.foto_aberta = True
+
+    @rx.event
+    def mudar_foto(self, aberta: bool):
+        self.foto_aberta = aberta
+
+    @rx.event
+    async def enviar_foto(self, arquivos: list[rx.UploadFile]):
+        """Envia a foto escolhida; formato e tamanho conferidos aqui só por usabilidade."""
+        self.erro_foto = ""
+        if not arquivos:
+            self.erro_foto = "Escolha uma foto JPEG, PNG ou WEBP."
+            return
+        arquivo = arquivos[0]
+        tipo = arquivo.content_type or ""
+        if tipo not in TIPOS_FOTO:
+            self.erro_foto = "A foto deve ser JPEG, PNG ou WEBP."
+            return
+        conteudo = await arquivo.read()
+        limite = self.foto_espaco.get("foto_max_kb") or ""
+        if limite.isdigit() and len(conteudo) > int(limite) * 1024:
+            self.erro_foto = f"A foto deve ter até {limite} KB."
+            return
+        token = await token_da_sessao(self)
+        try:
+            resposta = await api.definir_foto_espaco(
+                token, int(self.foto_espaco["id"]), arquivo.filename or "foto", conteudo, tipo
+            )
+        except api.ErroValidacao as erro:
+            # Recusa do Xano (formato ou tamanho): o diálogo não fecha
+            self.erro_foto = erro.mensagem
+            return
+        except api.ErroApi as erro:
+            self.foto_aberta = False
+            return await tratar_erro_api(self, erro)
+        self.foto_aberta = False
+        self.mensagem_sucesso = resposta["mensagem"]
+        return [rx.clear_selected_files("foto"), EspacosState.carregar]
+
+    @rx.event
+    def mudar_remover_foto(self, aberta: bool):
+        self.remover_foto_aberta = aberta
+
+    @rx.event
+    def pedir_remover_foto(self):
+        self.erro_foto = ""
+        self.remover_foto_aberta = True
+
+    @rx.event
+    async def confirmar_remover_foto(self, _dados: dict):
+        self.remover_foto_aberta = False
+        self.foto_aberta = False
+        token = await token_da_sessao(self)
+        return await self._executar(
+            api.remover_foto_espaco(token, int(self.foto_espaco["id"]))
         )

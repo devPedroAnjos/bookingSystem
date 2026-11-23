@@ -680,6 +680,47 @@ async def buscar_espacos(
     )
 
 
+def url_publica(foto_url: str | None) -> str:
+    """URL pública da foto de capa (D7): o Xano devolve a URL completa ao ler o espaço e só o
+    path do vault no envio; o path é completado com a origem da instância, já no .env."""
+    if not foto_url:
+        return ""
+    if foto_url.startswith("http"):
+        return foto_url
+    origem = os.environ.get(_ESPACOS, "").split("/api:")[0]
+    return f"{origem}{foto_url}"
+
+
+async def definir_foto_espaco(
+    token: str, espaco_id: int, nome: str, conteudo: bytes, tipo: str
+) -> dict[str, Any]:
+    """Envia ou troca a foto de capa (multipart, campo `foto`; o Xano valida formato e tamanho)."""
+    cabecalhos = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as cliente:
+            resposta = await cliente.post(
+                _url(_ESPACOS, "definir_foto_espaco"),
+                data={"espaco_id": str(espaco_id)},
+                files={"foto": (nome, conteudo, tipo)},
+                headers=cabecalhos,
+            )
+    except httpx.HTTPError as erro:
+        raise ErroApi() from erro
+    if resposta.status_code < 400:
+        return resposta.json()
+    if resposta.status_code == 429:
+        raise ErroApi(_MENSAGEM_LIMITE)
+    excecao = _ERROS_POR_STATUS.get(resposta.status_code, ErroApi)
+    raise excecao(_mensagem_da_resposta(resposta))
+
+
+async def remover_foto_espaco(token: str, espaco_id: int) -> dict[str, Any]:
+    """Remove a foto de capa do espaço e apaga o arquivo do armazenamento."""
+    return await _requisitar(
+        "POST", _url(_ESPACOS, "remover_foto_espaco"), token, {"espaco_id": espaco_id}
+    )
+
+
 async def detalhe_espaco(token: str, espaco_id: int) -> dict[str, Any]:
     """Dados, recursos, média e avaliações de um espaço que o papel pode reservar."""
     return await _requisitar(

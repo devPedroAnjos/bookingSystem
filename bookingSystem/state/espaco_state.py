@@ -73,7 +73,7 @@ class EspacoState(rx.State):
                 else "–"
             ),
             "total": str(detalhe.get("total_avaliacoes") or 0),
-            "foto": detalhe.get("foto_url") or "",
+            "foto": api.url_publica(detalhe.get("foto_url")),
             "icone": icone_do_tipo(detalhe["tipo"]["nome"]),
             "cor": cor_do_tipo(int(detalhe["tipo"]["id"])),
         }

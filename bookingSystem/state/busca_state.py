@@ -107,7 +107,7 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         "restrito": "sim" if espaco.get("restrito") else "nao",
         "restricao": espaco.get("restricao") or "",
         "media": media_texto(espaco),
-        "foto": espaco.get("foto_url") or "",
+        "foto": api.url_publica(espaco.get("foto_url")),
         "icone": icone_do_tipo(espaco["tipo"]["nome"]),
         "cor": cor_do_tipo(int(espaco["tipo"]["id"])),
         "link": f"/espaco/{espaco['id']}",

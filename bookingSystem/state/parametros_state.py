@@ -27,6 +27,7 @@ LIMITES = (
     "janela_faltas_dias",
     "duracao_penalidade_dias",
     "prazo_avaliacao_dias",
+    "foto_tamanho_max_kb",
 )
 
 # Dias de funcionamento em ISO: 1 = segunda a 7 = domingo
