@@ -293,7 +293,9 @@ Justificativa do usuário pedindo a anulação de uma penalidade.
 
 Nota de 1 a 5 e comentário opcional sobre o uso de um espaço.
 
-**Regras estruturais:** apenas para reserva `CONCLUIDA`; uma por reserva; até 7 dias após o término; somente o próprio usuário da reserva; visível a todos.
+**Regras estruturais:** apenas para reserva `CONCLUIDA` (situação efetiva); uma por reserva, garantida pelo índice único de `reserva_id`; até `prazo_avaliacao_dias` após o término, pelo valor atual do parâmetro; somente o próprio usuário da reserva; nota inteira de 1 a 5 e comentário opcional de até 500 caracteres; sem edição nem exclusão.
+
+**Visibilidade (change `espaco-feed-avaliacoes`):** as avaliações aparecem na página do espaço a quem pode reservar o tipo dele, e a média e a quantidade aparecem no feed. O autor é exibido só com o primeiro nome e o papel atual. As avaliações de conta inativada continuam visíveis e na média.
 
 ### 2.16 Notificação
 
@@ -328,7 +330,7 @@ Registro único com os parâmetros globais editáveis pelo admin principal. Redu
 | Prazo para confirmar a vaga retida pela fila (`prazo_confirmacao_fila_minutos`), contado do aviso e limitado ao corte | 720 min (12 h) |
 | Tempo mínimo útil da fila (`tempo_minimo_fila_minutos`): o fechamento da fila é o corte menos este valor | 30 min |
 | Antecedência mínima para deslocar por prioridade (vale para a nova reserva e para cada deslocada) | 120 min |
-| Prazo para avaliar | 7 dias |
+| Prazo para avaliar (`prazo_avaliacao_dias`), contado do término da reserva | 7 dias |
 | Período máximo de recorrência | 6 meses |
 | Máximo de coordenadores por unidade | 4 |
 | Máximo de unidades por coordenador | 2 |
@@ -728,9 +730,9 @@ erDiagram
 | `entrada_fila` | Única ativa por (`usuario_id`, `espaco_id`, `inicio`, `fim`). |
 | `falta` | `reserva_id` único. |
 | `contestacao` | `penalidade_id` único. |
-| `avaliacao` | `reserva_id` único; `nota` entre 1 e 5. |
+| `avaliacao` | `reserva_id` único; `nota` inteira entre 1 e 5; `comentario` opcional, até 500 caracteres. Nunca editada nem excluída. |
 | `log_auditoria` | Somente inserção. |
-| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um; `prazo_cancelamento_minutos >= 1`. |
+| `configuracao_geral` | Registro único. `granularidade_minutos` divisor de 60; `dias_funcionamento` com dias de 1 a 7, sem repetição, e pelo menos um; `prazo_cancelamento_minutos >= 1`; `prazo_avaliacao_dias >= 1`. |
 
 ### A.2 Índices recomendados
 
