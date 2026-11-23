@@ -1,4 +1,8 @@
-"""Layout das páginas autenticadas: cabeçalho, menu por papel e Sair.
+"""Layout das páginas autenticadas: barra no topo, menu por papel e menu do usuário.
+
+espaco-feed-avaliacoes (D12): logotipo, "Início" e "Minhas reservas"; os itens
+de gestão ficam no menu "Gestão", com os mesmos testes de papel de antes; nome,
+papel, "Trocar senha" e "Sair" ficam no menu do usuário.
 
 O menu só esconde o que o papel não usa (usabilidade); o Xano decide o acesso.
 Desde a C9, mostra no topo o aviso de vaga retida pela fila de espera, carregado
@@ -7,49 +11,128 @@ pelo `FilaState.carregar` do on_load de cada página.
 
 import reflex as rx
 
+from bookingSystem.pages.marca import logotipo
 from bookingSystem.state.auth_state import ROTA_TROCAR_SENHA, AuthState
 from bookingSystem.state.fila_state import FilaState
 
 
-def item_menu(texto: str, rota: str) -> rx.Component:
-    return rx.link(texto, href=rota, size="3", weight="medium")
+def item_menu(texto: str, rota: str, icone: str) -> rx.Component:
+    return rx.link(
+        rx.hstack(rx.icon(icone, size=17), rx.text(texto), spacing="2", align="center"),
+        href=rota,
+        size="2",
+        weight="medium",
+        underline="none",
+        color="var(--bs-ink-muted)",
+        padding="8px 12px",
+        border_radius="var(--bs-radius-sm)",
+        _hover={"background": "var(--bs-surface-sunken)", "color": "var(--bs-ink)"},
+    )
+
+
+def item_gestao(texto: str, rota: str) -> rx.Component:
+    return rx.menu.item(rx.link(texto, href=rota, underline="none", color="inherit", width="100%"))
+
+
+def menu_gestao() -> rx.Component:
+    """Itens de gestão agrupados (espaco-feed-avaliacoes, D12); só aparece para gestores."""
+    return rx.cond(
+        AuthState.e_gestor,
+        rx.menu.root(
+            rx.menu.trigger(
+                rx.button(rx.icon("settings", size=17), "Gestão", rx.icon("chevron-down", size=15),
+                          variant="ghost", color="var(--bs-ink-muted)"),
+            ),
+            rx.menu.content(
+                item_gestao("Aprovações", "/aprovacoes"),
+                item_gestao("Reservas da unidade", "/reservas-unidade"),
+                item_gestao("Espaços", "/espacos"),
+                item_gestao("Bloqueios", "/bloqueios"),
+                rx.cond(
+                    AuthState.e_admin,
+                    rx.fragment(
+                        rx.menu.separator(),
+                        item_gestao("Usuários", "/usuarios"),
+                        item_gestao("Unidades", "/unidades"),
+                        item_gestao("Tipos de espaço", "/tipos-espaco"),
+                        item_gestao("Recursos", "/recursos"),
+                        item_gestao("Penalidades", "/penalidades"),
+                    ),
+                ),
+                rx.cond(
+                    AuthState.e_principal,
+                    rx.fragment(
+                        rx.menu.separator(),
+                        item_gestao("Administradores", "/administradores"),
+                        item_gestao("Parâmetros", "/parametros"),
+                    ),
+                ),
+            ),
+        ),
+    )
 
 
 def menu() -> rx.Component:
-    """Com senha provisória, só a troca de senha (spec senha)."""
+    """Com senha provisória, a barra não tem itens: só o menu do usuário (spec senha)."""
     return rx.cond(
         AuthState.senha_provisoria,
-        rx.hstack(item_menu("Trocar senha", ROTA_TROCAR_SENHA), align="center"),
+        rx.fragment(),
         rx.hstack(
-            item_menu("Início", "/inicio"),
-            item_menu("Buscar espaços", "/buscar"),
-            item_menu("Minhas reservas", "/minhas-reservas"),
-            rx.cond(AuthState.e_gestor, item_menu("Aprovações", "/aprovacoes")),
-            rx.cond(
-                AuthState.e_gestor,
-                item_menu("Reservas da unidade", "/reservas-unidade"),
-            ),
-            rx.cond(AuthState.e_gestor, item_menu("Espaços", "/espacos")),
-            rx.cond(AuthState.e_gestor, item_menu("Bloqueios", "/bloqueios")),
-            rx.cond(AuthState.e_admin, item_menu("Usuários", "/usuarios")),
-            rx.cond(AuthState.e_admin, item_menu("Unidades", "/unidades")),
-            rx.cond(
-                AuthState.e_admin, item_menu("Tipos de espaço", "/tipos-espaco")
-            ),
-            rx.cond(AuthState.e_admin, item_menu("Recursos", "/recursos")),
-            rx.cond(AuthState.e_admin, item_menu("Penalidades", "/penalidades")),
-            rx.cond(
-                AuthState.e_principal,
-                item_menu("Administradores", "/administradores"),
-            ),
-            rx.cond(AuthState.e_principal, item_menu("Parâmetros", "/parametros")),
-            item_menu("Trocar senha", ROTA_TROCAR_SENHA),
-            spacing="5",
+            item_menu("Início", "/inicio", "house"),
+            item_menu("Minhas reservas", "/minhas-reservas", "calendar-days"),
+            menu_gestao(),
+            spacing="1",
             align="center",
             wrap="wrap",
         ),
     )
 
+
+def menu_usuario() -> rx.Component:
+    """Chip com nome e papel; abre "Trocar senha" e "Sair" (spec interface-web)."""
+    return rx.menu.root(
+        rx.menu.trigger(
+            rx.button(
+                rx.avatar(fallback=AuthState.primeiro_nome[:1], size="1", radius="full",
+                          color_scheme="green"),
+                rx.text(AuthState.nome, size="2", weight="medium"),
+                rx.badge(AuthState.nome_papel, variant="soft", color_scheme="gray"),
+                rx.icon("chevron-down", size=15),
+                variant="outline",
+                radius="full",
+                color="var(--bs-ink)",
+            ),
+        ),
+        rx.menu.content(
+            rx.menu.item(rx.link("Trocar senha", href=ROTA_TROCAR_SENHA, underline="none", color="inherit")),
+            rx.menu.separator(),
+            rx.menu.item("Sair", on_click=AuthState.sair, color="red"),
+        ),
+    )
+
+
+def barra() -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.link(logotipo(170), href="/inicio", underline="none"),
+            menu(),
+            rx.spacer(),
+            menu_usuario(),
+            align="center",
+            spacing="5",
+            max_width="1240px",
+            margin="0 auto",
+            height="64px",
+            padding_x="24px",
+            width="100%",
+        ),
+        position="sticky",
+        top="0",
+        z_index="30",
+        background="var(--bs-surface)",
+        border_bottom="1px solid var(--bs-line)",
+        width="100%",
+    )
 
 def linha_aviso_fila(entrada: rx.Var[dict[str, str]]) -> rx.Component:
     return rx.text(
@@ -92,30 +175,21 @@ def layout_autenticado(
     liberado = (AuthState.nome != "") & permitido
     if not aceita_senha_provisoria:
         liberado = liberado & ~AuthState.senha_provisoria
-    return rx.container(
-        rx.cond(
-            liberado,
+    return rx.cond(
+        liberado,
+        rx.box(
+            barra(),
             rx.vstack(
-                rx.hstack(
-                    rx.heading("BookingSystem", size="6"),
-                    menu(),
-                    rx.spacer(),
-                    rx.text(AuthState.nome, size="2"),
-                    rx.badge(AuthState.nome_papel, size="2"),
-                    rx.button("Sair", on_click=AuthState.sair, variant="soft"),
-                    width="100%",
-                    align="center",
-                    spacing="4",
-                    wrap="wrap",
-                ),
-                rx.divider(),
                 aviso_fila(),
                 *conteudo,
                 spacing="4",
-                padding_y="24px",
+                padding="28px 24px 64px",
+                max_width="1240px",
+                margin="0 auto",
                 width="100%",
             ),
-            rx.center(rx.spinner(), min_height="50vh"),
+            min_height="100vh",
+            background="var(--bs-bg)",
         ),
-        size="4",
+        rx.center(rx.spinner(), min_height="50vh"),
     )

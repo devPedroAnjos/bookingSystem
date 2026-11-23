@@ -6,6 +6,13 @@ hora, ocupação e deslocamento por prioridade são decididos no Xano. "Livre" e
 criação (C6, design D13 e D14; C8, design D7 e D8). Desde a C9, o espaço
 ocupado e não deslocável pode oferecer "Entrar na fila" (`pode_entrar_fila`),
 e o espaço em cuja fila o usuário já está mostra essa indicação (`na_fila`).
+
+espaco-feed-avaliacoes (design D13 e D14): a busca vira o feed da Início. Ao
+abrir, mostra todos os espaços; o campo de texto vai ao Xano, que procura sem
+maiúsculas nem acentos. Os espaços de tipos que o papel não pode reservar
+chegam `restrito`, com o aviso `restricao` montado no Xano, e aparecem como
+cartão acinzentado, sem página nem ações. Cor e ícone por tipo são só
+apresentação.
 """
 
 import reflex as rx
@@ -30,6 +37,45 @@ MOTIVOS_HORARIO = {
     "ANTECEDENCIA_MINIMA": "antecedência menor que a mínima",
     "ANTECEDENCIA_MAXIMA": "antecedência maior que a máxima",
 }
+
+
+# Faixa do cartão sem foto: tons do design system, escolhidos pelo id do tipo
+CORES_FAIXA = (
+    "var(--bs-green-50)",
+    "var(--bs-green-100)",
+    "var(--bs-info-soft)",
+    "var(--bs-warning-soft)",
+    "var(--bs-green-200)",
+)
+
+# Ícone Lucide pela palavra do nome do tipo (sem acento e em minúsculas)
+ICONES_TIPO = (
+    ("biblioteca", "book-open"),
+    ("laborat", "flask-conical"),
+    ("auditor", "theater"),
+    ("sala", "presentation"),
+)
+
+
+def icone_do_tipo(nome: str) -> str:
+    nome = nome.lower()
+    for palavra, icone in ICONES_TIPO:
+        if palavra in nome:
+            return icone
+    return "door-open"
+
+
+def cor_do_tipo(tipo_id: int) -> str:
+    return CORES_FAIXA[tipo_id % len(CORES_FAIXA)]
+
+
+def media_texto(espaco: dict) -> str:
+    """Ex.: "4,5 (12)"; vazio quando o espaço não tem avaliações."""
+    total = espaco.get("total_avaliacoes") or 0
+    media = espaco.get("media_avaliacoes")
+    if not total or media is None:
+        return ""
+    return f"{float(media):.1f}".replace(".", ",") + f" ({total})"
 
 
 def _tipo_para_tela(tipo: dict) -> dict[str, str]:
@@ -57,6 +103,15 @@ def _texto_deslocamento(quantidade: int) -> str:
 
 
 def _espaco_para_tela(espaco: dict) -> dict[str, str]:
+    visual = {
+        "restrito": "sim" if espaco.get("restrito") else "nao",
+        "restricao": espaco.get("restricao") or "",
+        "media": media_texto(espaco),
+        "foto": espaco.get("foto_url") or "",
+        "icone": icone_do_tipo(espaco["tipo"]["nome"]),
+        "cor": cor_do_tipo(int(espaco["tipo"]["id"])),
+        "link": f"/espaco/{espaco['id']}",
+    }
     if "dentro_das_regras" not in espaco:
         horario = ""
     elif espaco["dentro_das_regras"]:
@@ -105,6 +160,7 @@ def _espaco_para_tela(espaco: dict) -> dict[str, str]:
         # Fila de espera (C9, design D9): o Xano decide as duas indicações
         "pode_entrar_fila": "sim" if espaco.get("pode_entrar_fila") else "nao",
         "na_fila": "sim" if espaco.get("na_fila") else "nao",
+        **visual,
     }
 
 
@@ -117,7 +173,10 @@ class BuscaState(rx.State):
     """Filtros da busca e os espaços encontrados."""
 
     unidades: list[dict[str, str]] = []
+    # Tipos que o papel pode reservar, com as regras (texto de ajuda)
     tipos: list[dict[str, str]] = []
+    # Todos os tipos com regras, para o filtro (os restritos também filtram)
+    tipos_filtro: list[dict[str, str]] = []
     recursos: list[dict[str, str]] = []
     resultados: list[dict[str, str]] = []
     buscou: bool = False
@@ -146,7 +205,7 @@ class BuscaState(rx.State):
 
     @rx.var
     def opcoes_tipo(self) -> list[dict[str, str]]:
-        return [{"id": TODOS, "nome": "Todos os tipos"}, *self.tipos]
+        return [{"id": TODOS, "nome": "Todos os tipos"}, *self.tipos_filtro]
 
     @rx.var
     def pedido_texto(self) -> str:
@@ -172,10 +231,21 @@ class BuscaState(rx.State):
         except api.ErroApi as erro:
             return await tratar_erro_api(self, erro)
         self.unidades = [{"id": str(u["id"]), "nome": u["nome"]} for u in unidades]
-        self.tipos = [_tipo_para_tela(t) for t in filtros["tipos"]]
+        self.tipos = [
+            _tipo_para_tela(t) for t in filtros["tipos"] if t.get("pode_reservar")
+        ]
+        self.tipos_filtro = [
+            {"id": str(t["id"]), "nome": t["nome"]} for t in filtros["tipos"]
+        ]
         self.recursos = [
             {"id": str(r["id"]), "nome": r["nome"]} for r in filtros["recursos"]
         ]
+
+    @rx.event
+    async def feed_inicial(self):
+        """O feed abre com todos os espaços, sem filtros (D13)."""
+        self._ultimos_filtros = {}
+        return await self._consultar({})
 
     @rx.event
     def abrir(self):
@@ -184,7 +254,7 @@ class BuscaState(rx.State):
         self.resultados = []
         self.buscou = False
         self.pedido = {}
-        return BuscaState.carregar
+        return [BuscaState.carregar, BuscaState.feed_inicial]
 
     async def _consultar(self, filtros: dict):
         self.resultados = []
@@ -215,6 +285,7 @@ class BuscaState(rx.State):
             )
             return
         filtros = {
+            "texto": str(dados.get("texto", "") or "").strip(),
             "unidade_id": _id_escolhido(dados.get("unidade_id")),
             "tipo_espaco_id": _id_escolhido(dados.get("tipo_espaco_id")),
             "capacidade_minima": _id_escolhido(dados.get("capacidade_minima")),

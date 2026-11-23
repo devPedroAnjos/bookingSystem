@@ -668,13 +668,22 @@ async def filtros_busca(token: str) -> dict[str, Any]:
 async def buscar_espacos(
     token: str, filtros: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Espaços reserváveis pelo usuário, com os filtros informados.
+    """Espaços reserváveis, com os filtros informados (inclusive `texto`).
 
     Com data (AAAA-MM-DD) e horas (HH:MM), cada espaço diz se o pedido
     está dentro das regras do tipo e se está ocupado, sem dizer por quem.
+    Os de tipos que o papel não pode reservar vêm com `restrito` e
+    `restricao`, só com os dados básicos (espaco-feed-avaliacoes, D4).
     """
     return await _requisitar(
         "POST", _url(_ESPACOS, "buscar_espacos"), token, filtros
+    )
+
+
+async def detalhe_espaco(token: str, espaco_id: int) -> dict[str, Any]:
+    """Dados, recursos, média e avaliações de um espaço que o papel pode reservar."""
+    return await _requisitar(
+        "GET", _url(_ESPACOS, "detalhe_espaco"), token, params={"espaco_id": espaco_id}
     )
 
 
@@ -739,6 +748,18 @@ async def fazer_checkin(token: str, reserva_id: int) -> dict[str, Any]:
         _url(_RESERVAS, "fazer_checkin"),
         token,
         {"reserva_id": reserva_id},
+    )
+
+
+async def avaliar_reserva(
+    token: str, reserva_id: int, nota: int, comentario: str
+) -> dict[str, Any]:
+    """Avalia uma reserva concluída própria, com nota de 1 a 5 e comentário opcional."""
+    return await _requisitar(
+        "POST",
+        _url(_RESERVAS, "avaliar_reserva"),
+        token,
+        {"reserva_id": reserva_id, "nota": nota, "comentario": comentario},
     )
 
 

@@ -60,6 +60,10 @@ def _reserva_para_tela(reserva: dict) -> dict[str, str]:
             f"{reserva.get('checkin_fecha', '')}"
         ),
         "falta": TIPOS_FALTA.get(reserva.get("falta") or "", ""),
+        # Avaliação (espaco-feed-avaliacoes, D8): o Xano decide e revalida
+        "pode_avaliar": "sim" if reserva.get("pode_avaliar") else "nao",
+        "avaliar_ate": reserva.get("avaliar_ate") or "",
+        "nota": str(reserva.get("avaliacao_nota") or ""),
     }
 
 
@@ -73,6 +77,8 @@ class ReservasState(rx.State):
 
     proximas: list[dict[str, str]] = []
     historico: list[dict[str, str]] = []
+    # Próxima reserva indicada pelo Xano (proxima_reserva_id), para a Início
+    proxima: dict[str, str] = {}
     prazo_minutos: int = 0
     carregou: bool = False
     mensagem_erro: str = ""
@@ -98,6 +104,10 @@ class ReservasState(rx.State):
             _reserva_para_tela(r) for r in reservas if not _e_proxima(r, agora_ms)
         ]
         self.prazo_minutos = resposta["prazo_cancelamento_minutos"]
+        proxima = next(
+            (r for r in reservas if r["id"] == resposta.get("proxima_reserva_id")), None
+        )
+        self.proxima = _reserva_para_tela(proxima) if proxima else {}
         self.carregou = True
 
     @rx.event
