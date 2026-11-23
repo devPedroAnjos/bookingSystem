@@ -1,7 +1,7 @@
 // Edição dos parâmetros pelo admin principal (spec parametros; design.md da C3, D9 e da C5, D8).
 // Limites inteiros >= 1, inclusive o prazo de cancelamento (C6, D12) e o prazo para deslocar por
 // prioridade (C8, D9) e os três parâmetros da fila de espera (C9, D2 e D12: corte, prazo para
-// confirmar e tempo mínimo útil) e os cinco de check-in e penalidade (C10, D1); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
+// confirmar e tempo mínimo útil) e os cinco de check-in e penalidade (C10, D1) e o prazo para avaliar (espaco-feed-avaliacoes, D8); ao menos 1 domínio, sem @ nem espaço, sem repetição, em minúsculas;
 // granularidade divisora de 60 e compatível com as regras dos tipos (conferido na trava);
 // dias de funcionamento de 1 a 7, sem repetição, ao menos um.
 // Reduzir um limite não remove ninguém. Se algo for inválido, nada é gravado.
@@ -26,6 +26,7 @@ query parametros verb=POST {
     int? faltas_para_penalidade?
     int? janela_faltas_dias?
     int? duracao_penalidade_dias?
+    int? prazo_avaliacao_dias?
     int? granularidade_minutos?
     json? dias_funcionamento?
   }
@@ -65,7 +66,8 @@ query parametros verb=POST {
         checkin_depois_minutos    : $input.checkin_depois_minutos,
         faltas_para_penalidade    : $input.faltas_para_penalidade,
         janela_faltas_dias        : $input.janela_faltas_dias,
-        duracao_penalidade_dias   : $input.duracao_penalidade_dias
+        duracao_penalidade_dias   : $input.duracao_penalidade_dias,
+        prazo_avaliacao_dias      : $input.prazo_avaliacao_dias
       }
     }
   
@@ -163,6 +165,7 @@ query parametros verb=POST {
             faltas_para_penalidade    : $antes.faltas_para_penalidade
             janela_faltas_dias        : $antes.janela_faltas_dias
             duracao_penalidade_dias   : $antes.duracao_penalidade_dias
+            prazo_avaliacao_dias      : $antes.prazo_avaliacao_dias
             granularidade_minutos     : $antes.granularidade_minutos
             dias_funcionamento        : $antes.dias_funcionamento
           }
@@ -182,6 +185,7 @@ query parametros verb=POST {
             faltas_para_penalidade    : $depois.faltas_para_penalidade
             janela_faltas_dias        : $depois.janela_faltas_dias
             duracao_penalidade_dias   : $depois.duracao_penalidade_dias
+            prazo_avaliacao_dias      : $depois.prazo_avaliacao_dias
             granularidade_minutos     : $depois.granularidade_minutos
             dias_funcionamento        : $depois.dias_funcionamento
           }

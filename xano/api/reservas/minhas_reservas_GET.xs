@@ -10,6 +10,10 @@
 // check-in; cancelamento_gera_falta; janela de check-in (horas em São Paulo) e checkin_possivel;
 // falta derivada da situação (aparece antes da gravação).
 // C11 (design D6): a reserva cancelada por bloqueio traz o tipo e o motivo do bloqueio, sem o autor.
+// espaco-feed-avaliacoes (design D8): pode_avaliar (CONCLUIDA, sem avaliação, até o prazo atual),
+// avaliar_ate (data e hora em São Paulo) e avaliacao_nota; proxima_reserva_id é a PENDENTE ou
+// CONFIRMADA efetiva que ainda não terminou com o menor início (empate: menor id). Só usabilidade:
+// a avaliação e o check-in revalidam.
 // Lista as reservas do usuário autenticado
 query minhas_reservas verb=GET {
   api_group = "reservas"
@@ -30,8 +34,12 @@ query minhas_reservas verb=GET {
       return = {type: "single"}
     } as $configuracao
 
-    precondition ($configuracao != null && !($configuracao.prazo_cancelamento_minutos|is_null) && !($configuracao.checkin_antes_minutos|is_null) && !($configuracao.checkin_depois_minutos|is_null) && !($configuracao.comparecimento_desde|is_null)) {
+    precondition ($configuracao != null && !($configuracao.prazo_cancelamento_minutos|is_null) && !($configuracao.checkin_antes_minutos|is_null) && !($configuracao.checkin_depois_minutos|is_null) && !($configuracao.comparecimento_desde|is_null) && !($configuracao.prazo_avaliacao_dias|is_null)) {
       error = "Configuração de reservas incompleta: execute o bootstrap."
+    }
+
+    var $prazo_avaliacao_ms {
+      value = $configuracao.prazo_avaliacao_dias * 86400000
     }
 
     var $limite_cancelamento {
@@ -89,6 +97,32 @@ query minhas_reservas verb=GET {
           value = $bloqueios_das_reservas
         }
       }
+    }
+
+    // Avaliações das reservas do usuário, numa consulta só (D8)
+    var $ids_reservas {
+      value = $reservas|map:$$.id
+    }
+
+    var $avaliacoes {
+      value = []
+    }
+
+    conditional {
+      if (($ids_reservas|count) > 0) {
+        db.query avaliacao {
+          where = $db.avaliacao.reserva_id in $ids_reservas
+          return = {type: "list"}
+        } as $avaliacoes_das_reservas
+
+        var.update $avaliacoes {
+          value = $avaliacoes_das_reservas
+        }
+      }
+    }
+
+    var $proxima {
+      value = null
     }
 
     var $lista {
@@ -259,6 +293,70 @@ query minhas_reservas verb=GET {
           }
         }
 
+        // Avaliação (D8)
+        var $avaliacao {
+          value = $avaliacoes|find:$$.reserva_id == $reserva.id
+        }
+
+        var $avaliacao_nota {
+          value = null
+        }
+
+        conditional {
+          if ($avaliacao != null) {
+            var.update $avaliacao_nota {
+              value = $avaliacao.nota
+            }
+          }
+        }
+
+        var $avaliar_ate {
+          value = null
+        }
+
+        var $pode_avaliar {
+          value = false
+        }
+
+        conditional {
+          if ($situacao == "CONCLUIDA") {
+            var $limite_avaliacao {
+              value = $reserva.fim + $prazo_avaliacao_ms
+            }
+
+            var.update $avaliar_ate {
+              value = $limite_avaliacao|format_timestamp:"d/m/Y H:i":"America/Sao_Paulo"
+            }
+
+            conditional {
+              if ($avaliacao == null && $agora <= $limite_avaliacao) {
+                var.update $pode_avaliar {
+                  value = true
+                }
+              }
+            }
+          }
+        }
+
+        // Próxima reserva: menor início entre as ativas que não terminaram; empate pelo menor id
+        conditional {
+          if (($situacao == "PENDENTE" || $situacao == "CONFIRMADA") && $reserva.fim > $agora) {
+            conditional {
+              if ($proxima == null) {
+                var.update $proxima {
+                  value = $reserva
+                }
+              }
+
+              elseif ($reserva.inicio < $proxima.inicio || ($reserva.inicio == $proxima.inicio && $reserva.id < $proxima.id)) {
+                var.update $proxima {
+                  value = $reserva
+                }
+              }
+            }
+          }
+        }
+
         var $espaco_item {
           value = {}
             |set:"id":$espaco.id
@@ -304,6 +402,9 @@ query minhas_reservas verb=GET {
             |set:"checkin_fecha":$checkin_fecha_hora
             |set:"checkin_possivel":$checkin_possivel
             |set:"falta":$falta
+            |set:"pode_avaliar":$pode_avaliar
+            |set:"avaliar_ate":$avaliar_ate
+            |set:"avaliacao_nota":$avaliacao_nota
         }
 
         var.update $lista {
@@ -312,9 +413,22 @@ query minhas_reservas verb=GET {
       }
     }
 
+    var $proxima_reserva_id {
+      value = null
+    }
+
+    conditional {
+      if ($proxima != null) {
+        var.update $proxima_reserva_id {
+          value = $proxima.id
+        }
+      }
+    }
+
     var $resposta {
       value = {}
         |set:"reservas":$lista
+        |set:"proxima_reserva_id":$proxima_reserva_id
         |set:"prazo_cancelamento_minutos":$configuracao.prazo_cancelamento_minutos
     }
   }

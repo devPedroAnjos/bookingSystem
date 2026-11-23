@@ -53,6 +53,10 @@ table configuracao_geral {
     int? janela_faltas_dias?
     int? duracao_penalidade_dias?
 
+    // Avaliação (change espaco-feed-avaliacoes, design D1): dias depois do término em que o dono
+    // de uma reserva concluída pode avaliá-la. Preenchido pelo bootstrap; lido direto da tabela.
+    int? prazo_avaliacao_dias?
+
     // Marco técnico (C10, decisão 20): reservas que começam antes dele seguem a regra anterior,
     // sem check-in nem falta. Gravado uma vez pelo bootstrap; não é parâmetro editável.
     timestamp? comparecimento_desde?
