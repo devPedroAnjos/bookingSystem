@@ -363,6 +363,23 @@ query buscar_espacos verb=POST {
               }
             }
 
+            // Foto de capa pública (D7), para completos e restritos
+            var $foto_url {
+              value = null
+            }
+
+            conditional {
+              if ($incluir) {
+                function.run url_da_foto {
+                  input = {foto: $espaco.foto_capa}
+                } as $url_foto
+
+                var.update $foto_url {
+                  value = $url_foto
+                }
+              }
+            }
+
             conditional {
               if ($incluir && $restrito) {
                 // Papéis que podem reservar o tipo, em ordem de prioridade (decisão 16)
@@ -413,6 +430,7 @@ query buscar_espacos verb=POST {
                     |set:"localizacao":$espaco.localizacao
                     |set:"restrito":true
                     |set:"restricao":$restricao
+                    |set:"foto_url":$foto_url
                 }
 
                 var.update $resultado {
@@ -471,6 +489,7 @@ query buscar_espacos verb=POST {
                     |set:"restrito":false
                     |set:"media_avaliacoes":$avaliacoes_do_espaco.media
                     |set:"total_avaliacoes":$total_avaliacoes
+                    |set:"foto_url":$foto_url
                 }
               
                 conditional {

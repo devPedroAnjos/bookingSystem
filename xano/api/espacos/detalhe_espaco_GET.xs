@@ -239,8 +239,13 @@ query detalhe_espaco verb=GET {
       value = $recursos_do_espaco|sort:"nome":"itext":true
     }
 
+    function.run url_da_foto {
+      input = {foto: $espaco.foto_capa}
+    } as $foto_url
+
     var $resposta {
       value = {}
+        |set:"foto_url":$foto_url
         |set:"id":$espaco.id
         |set:"nome":$espaco.nome
         |set:"codigo":$espaco.codigo

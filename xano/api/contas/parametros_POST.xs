@@ -27,6 +27,7 @@ query parametros verb=POST {
     int? janela_faltas_dias?
     int? duracao_penalidade_dias?
     int? prazo_avaliacao_dias?
+    int? foto_tamanho_max_kb?
     int? granularidade_minutos?
     json? dias_funcionamento?
   }
@@ -67,7 +68,8 @@ query parametros verb=POST {
         faltas_para_penalidade    : $input.faltas_para_penalidade,
         janela_faltas_dias        : $input.janela_faltas_dias,
         duracao_penalidade_dias   : $input.duracao_penalidade_dias,
-        prazo_avaliacao_dias      : $input.prazo_avaliacao_dias
+        prazo_avaliacao_dias      : $input.prazo_avaliacao_dias,
+        foto_tamanho_max_kb       : $input.foto_tamanho_max_kb
       }
     }
   
@@ -166,6 +168,7 @@ query parametros verb=POST {
             janela_faltas_dias        : $antes.janela_faltas_dias
             duracao_penalidade_dias   : $antes.duracao_penalidade_dias
             prazo_avaliacao_dias      : $antes.prazo_avaliacao_dias
+            foto_tamanho_max_kb       : $antes.foto_tamanho_max_kb
             granularidade_minutos     : $antes.granularidade_minutos
             dias_funcionamento        : $antes.dias_funcionamento
           }
@@ -186,6 +189,7 @@ query parametros verb=POST {
             janela_faltas_dias        : $depois.janela_faltas_dias
             duracao_penalidade_dias   : $depois.duracao_penalidade_dias
             prazo_avaliacao_dias      : $depois.prazo_avaliacao_dias
+            foto_tamanho_max_kb       : $depois.foto_tamanho_max_kb
             granularidade_minutos     : $depois.granularidade_minutos
             dias_funcionamento        : $depois.dias_funcionamento
           }

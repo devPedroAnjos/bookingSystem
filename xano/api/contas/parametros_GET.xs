@@ -37,6 +37,7 @@ query parametros verb=GET {
     janela_faltas_dias        : $configuracao.janela_faltas_dias
     duracao_penalidade_dias   : $configuracao.duracao_penalidade_dias
     prazo_avaliacao_dias      : $configuracao.prazo_avaliacao_dias
+    foto_tamanho_max_kb       : $configuracao.foto_tamanho_max_kb
   }
 
   guid = "h6GVCCaN38gcd5oNxeK8RY3fNdw"

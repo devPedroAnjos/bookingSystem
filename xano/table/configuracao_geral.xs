@@ -57,6 +57,10 @@ table configuracao_geral {
     // de uma reserva concluída pode avaliá-la. Preenchido pelo bootstrap; lido direto da tabela.
     int? prazo_avaliacao_dias?
 
+    // Foto de capa (change espaco-feed-avaliacoes, design D1): tamanho máximo em KB. Preenchido
+    // pelo bootstrap; lido direto da tabela por definir_foto_espaco e geridos.
+    int? foto_tamanho_max_kb?
+
     // Marco técnico (C10, decisão 20): reservas que começam antes dele seguem a regra anterior,
     // sem check-in nem falta. Gravado uma vez pelo bootstrap; não é parâmetro editável.
     timestamp? comparecimento_desde?
