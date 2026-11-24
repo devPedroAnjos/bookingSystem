@@ -1,6 +1,7 @@
 // Remoção da foto de capa (spec espacos; change espaco-feed-avaliacoes, design D7). Quem gere o
 // espaço; espaço sem foto é recusado sem auditoria. Zera o campo e audita na transação, e só
-// depois apaga o arquivo do armazenamento, para a URL antiga deixar de abrir.
+// depois apaga o arquivo original do armazenamento. A cópia com marca d'água de uma foto já
+// aberta pode continuar acessível pela URL antiga (limitação do plano gratuito, decisão 38).
 // Remove a foto de capa de um espaço gerido
 query remover_foto_espaco verb=POST {
   api_group = "espacos"
