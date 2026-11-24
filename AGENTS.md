@@ -99,6 +99,7 @@ Detalhes em `docs/project-overview.md` (seção 7) e `docs/domain-model.md` (se�
 - Segredos (tokens, chaves, URLs privadas) ficam em `.env` (fora do Git). Nunca em código, commit ou artefato do OpenSpec.
 - Senhas apenas como hash. Mensagens de erro não revelam se um e-mail existe.
 - Toda rota da API do Xano exige autenticação, exceto cadastro, login e a listagem pública de unidades ativas (somente id e nome) usada no formulário de cadastro. As rotas autenticadas validam papel e escopo de unidade no backend.
+- Exceção (change `espaco-feed-avaliacoes`, decisão 3): a foto de capa dos espaços é servida numa URL pública do armazenamento do Xano, porque o plano gratuito não tem armazenamento privado. Vale só para essa imagem, sem dados pessoais. O envio, a troca e a remoção exigem autenticação e papel de gestão na unidade, e a troca e a remoção apagam o arquivo anterior.
 
 ## 9. Verificação
 

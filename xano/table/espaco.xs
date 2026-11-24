@@ -19,6 +19,10 @@ table espaco {
     text localizacao? filters=trim
     text descricao? filters=trim
     bool ativo?=true
+
+    // Foto de capa (change espaco-feed-avaliacoes, design D1 e D7): objeto de storage.create_image,
+    // com acesso público (plano gratuito sem armazenamento privado; exceção do AGENTS.md §8)
+    image? foto_capa?
   }
 
   index = [

@@ -44,6 +44,10 @@ class AuthState(rx.State):
         return NOMES_PAPEIS.get(self.papel, self.papel)
 
     @rx.var
+    def primeiro_nome(self) -> str:
+        return self.nome.split(" ")[0] if self.nome else ""
+
+    @rx.var
     def e_admin(self) -> bool:
         return self.papel == "ADMIN"
 
@@ -79,6 +83,12 @@ class AuthState(rx.State):
         self._limpar_sessao()
         self.aviso = AVISO_SESSAO_EXPIRADA
         return rx.redirect(ROTA_LOGIN)
+
+    @rx.event
+    def abrir_boas_vindas(self):
+        """Tela de boas-vindas só sem sessão; com sessão, vai para a Início."""
+        if self._token:
+            return rx.redirect(ROTA_INICIO)
 
     @rx.event
     async def abrir_formulario(self):

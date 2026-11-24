@@ -14,6 +14,11 @@
 // pode_entrar_fila, se pode entrar: ocupado, dentro das regras, não deslocável, fora da fila, sem
 // reserva própria ocupando e antes do fechamento da fila (corte menos o tempo mínimo útil, D12).
 // Nunca sai quem ocupa nem quem está na fila.
+// espaco-feed-avaliacoes (design D4): os espaços de tipos que o papel não pode reservar aparecem
+// restritos (restrito, restricao com os papéis que podem reservar), só com os dados básicos, sem
+// descrição, recursos, aprovação, média nem horário. Filtro texto (até 100 caracteres) no nome,
+// código, descrição, localização, unidade e tipo, sem maiúsculas nem acentos; no restrito, só nos
+// campos que ele mostra, e o filtro de recursos não o encontra. Média e quantidade de avaliações.
 // Busca espaços reserváveis pelo usuário
 query buscar_espacos verb=POST {
   api_group = "espacos"
@@ -27,6 +32,7 @@ query buscar_espacos verb=POST {
     text? data? filters=trim
     text? hora_inicio? filters=trim
     text? hora_fim? filters=trim
+    text? texto? filters=trim
   }
 
   stack {
@@ -49,6 +55,19 @@ query buscar_espacos verb=POST {
       value = $input.hora_fim|first_notnull:""
     }
   
+    var $texto {
+      value = $input.texto|first_notnull:""
+    }
+
+    precondition (($texto|strlen) <= 100) {
+      error_type = "inputerror"
+      error = "O texto da busca deve ter até 100 caracteres."
+    }
+
+    var $texto_normalizado {
+      value = $texto|to_lower|unaccent
+    }
+
     var $com_horario {
       value = ($data|strlen) > 0 || ($hora_inicio|strlen) > 0 || ($hora_fim|strlen) > 0
     }
@@ -247,10 +266,15 @@ query buscar_espacos verb=POST {
       return = {type: "list"}
     } as $recursos
   
+    // Média e quantidade de avaliações de todos os espaços ativos, numa chamada (D3)
+    function.run avaliacoes_dos_espacos {
+      input = {espacos_ids: $espacos|map:$$.id}
+    } as $avaliacoes_por_espaco
+
     var $resultado {
       value = []
     }
-  
+
     foreach ($unidades) {
       each as $unidade {
         var $da_unidade {
@@ -292,12 +316,129 @@ query buscar_espacos verb=POST {
               value = $do_espaco|map:$$.recurso_id
             }
           
-            var $incluir {
-              value = $disponibilidade.reservavel && $regra.pode_reservar && ($input.unidade_id == null || $input.unidade_id == $unidade.id) && ($input.tipo_espaco_id == null || $input.tipo_espaco_id == $espaco.tipo_espaco_id) && ($input.capacidade_minima == null || $espaco.capacidade >= $input.capacidade_minima) && ($recursos_pedidos|every:($ids_do_espaco|in:$$))
+            // D4: o tipo que o papel não pode reservar aparece restrito, em vez de ficar de fora
+            var $restrito {
+              value = $regra.pode_reservar != true
             }
-          
+
+            var $incluir {
+              value = $disponibilidade.reservavel && ($input.unidade_id == null || $input.unidade_id == $unidade.id) && ($input.tipo_espaco_id == null || $input.tipo_espaco_id == $espaco.tipo_espaco_id) && ($input.capacidade_minima == null || $espaco.capacidade >= $input.capacidade_minima) && ($recursos_pedidos|every:($ids_do_espaco|in:$$))
+            }
+
+            // O restrito não mostra recursos, então o filtro de recursos não o encontra
+            conditional {
+              if ($restrito && ($recursos_pedidos|count) > 0) {
+                var.update $incluir {
+                  value = false
+                }
+              }
+            }
+
+            // Texto: só nos campos que o espaço mostra (o restrito não mostra a descrição)
+            conditional {
+              if ($incluir && ($texto_normalizado|strlen) > 0) {
+                var $campos_texto {
+                  value = $espaco.nome ~ " " ~ $espaco.codigo ~ " " ~ ($espaco.localizacao|first_notnull:"") ~ " " ~ $unidade.nome ~ " " ~ $tipo.nome
+                }
+
+                conditional {
+                  if (!$restrito) {
+                    var.update $campos_texto {
+                      value = $campos_texto ~ " " ~ ($espaco.descricao|first_notnull:"")
+                    }
+                  }
+                }
+
+                var $campos_normalizados {
+                  value = $campos_texto|to_lower|unaccent
+                }
+
+                conditional {
+                  if (!($campos_normalizados|contains:$texto_normalizado)) {
+                    var.update $incluir {
+                      value = false
+                    }
+                  }
+                }
+              }
+            }
+
+            // Foto de capa pública (D7), para completos e restritos
+            var $foto_url {
+              value = null
+            }
+
             conditional {
               if ($incluir) {
+                function.run url_da_foto {
+                  input = {foto: $espaco.foto_capa}
+                } as $url_foto
+
+                var.update $foto_url {
+                  value = $url_foto
+                }
+              }
+            }
+
+            conditional {
+              if ($incluir && $restrito) {
+                // Papéis que podem reservar o tipo, em ordem de prioridade (decisão 16)
+                var $papeis_texto {
+                  value = ""
+                }
+
+                conditional {
+                  if (($regras_do_tipo|find:($$.papel == "ALUNO" && $$.pode_reservar == true)) != null) {
+                    var.update $papeis_texto {
+                      value = "alunos, "
+                    }
+                  }
+                }
+
+                conditional {
+                  if (($regras_do_tipo|find:($$.papel == "PROFESSOR" && $$.pode_reservar == true)) != null) {
+                    var.update $papeis_texto {
+                      value = $papeis_texto ~ "professores, "
+                    }
+                  }
+                }
+
+                var $restricao {
+                  value = "Reservável por " ~ $papeis_texto ~ "coordenadores e administradores"
+                }
+
+                var $unidade_restrito {
+                  value = {}
+                    |set:"id":$unidade.id
+                    |set:"nome":$unidade.nome
+                }
+
+                var $tipo_restrito {
+                  value = {}
+                    |set:"id":$tipo.id
+                    |set:"nome":$tipo.nome
+                }
+
+                var $item_restrito {
+                  value = {}
+                    |set:"id":$espaco.id
+                    |set:"nome":$espaco.nome
+                    |set:"codigo":$espaco.codigo
+                    |set:"unidade":$unidade_restrito
+                    |set:"tipo":$tipo_restrito
+                    |set:"capacidade":$espaco.capacidade
+                    |set:"localizacao":$espaco.localizacao
+                    |set:"restrito":true
+                    |set:"restricao":$restricao
+                    |set:"foto_url":$foto_url
+                }
+
+                var.update $resultado {
+                  value = $resultado|push:$item_restrito
+                }
+              }
+
+              elseif ($incluir) {
                 var $recursos_do_espaco {
                   value = []
                 }
@@ -333,6 +474,22 @@ query buscar_espacos verb=POST {
                     recursos       : $recursos_do_espaco|sort:"nome":"itext":true
                     exige_aprovacao: $regra.exige_aprovacao
                   }
+                }
+
+                var $avaliacoes_do_espaco {
+                  value = $avaliacoes_por_espaco|find:$$.espaco_id == $espaco.id
+                }
+
+                var $total_avaliacoes {
+                  value = $avaliacoes_do_espaco.total|first_notnull:0
+                }
+
+                var.update $item {
+                  value = $item
+                    |set:"restrito":false
+                    |set:"media_avaliacoes":$avaliacoes_do_espaco.media
+                    |set:"total_avaliacoes":$total_avaliacoes
+                    |set:"foto_url":$foto_url
                 }
               
                 conditional {

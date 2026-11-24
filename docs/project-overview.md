@@ -67,12 +67,13 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 - Avaliação do uso (nota de 1 a 5 e comentário).
 - Avisos nas telas do sistema: o motivo de cada cancelamento, recusa e expiração aparece em "Minhas reservas", e a vaga retida pela fila aparece no topo de todas as páginas.
 - Log de auditoria gravado em toda ação sensível.
+- Foto de capa de cada espaço, enviada pela gestão, mostrada no feed e na página do espaço. No plano gratuito do Xano a foto é pública e recebe marca d'água (exceção registrada no `AGENTS.md`, §8).
 
 ### Fora do escopo (v1)
 
 - Saíram da v1 no replanejamento de 22/11/2026, por causa do prazo de entrega (decisão 1 do `decisions-log.md` da change `bloqueios`), e ficam como evolução:
   - reserva recorrente semanal de sala de aula (seção 7.5);
-  - fotos dos espaços enviadas pela gestão;
+  - galeria com várias fotos por espaço (a foto de capa voltou à v1 na change `espaco-feed-avaliacoes`);
   - painel, relatórios e tela de consulta do log de auditoria;
   - bloqueio de todos os espaços de uma unidade numa só ação (feriado da unidade inteira), que pode voltar como change extra.
 
@@ -89,7 +90,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 ## 6. Principais funcionalidades
 
 1. **Cadastro e login** — o usuário se cadastra informando nome, e-mail institucional, senha e o tipo de vínculo (aluno, professor ou coordenador). Contas de aluno ficam ativas imediatamente. Contas de professor ficam pendentes até a aprovação de um administrador ou do coordenador da unidade indicada; contas de coordenador, até a aprovação de um administrador. Quem é recusado vê o motivo e pode pedir nova análise.
-2. **Busca de espaços** — por unidade, tipo, data, horário, capacidade e recursos; mostra apenas os tipos que o papel do usuário pode reservar.
+2. **Busca de espaços** — feed de cartões na página Início, com a foto de capa ou uma faixa colorida por tipo, busca por texto (nome, código, descrição, localização, unidade e tipo) e filtros por unidade, tipo, data, horário, capacidade e recursos. Os espaços de tipos que o papel do usuário não pode reservar aparecem como cartão "Restrito", acinzentado, que lista os papéis que podem reservá-lo, sem página, avaliações, ocupação nem ações.
 3. **Verificação de disponibilidade** — o sistema verifica penalidade em vigor, bloqueios, conflitos de horário e regras do tipo de espaço antes de aceitar o pedido.
 4. **Reserva** — confirmada imediatamente ou criada como pendente quando o tipo exige aprovação para aquele papel.
 5. **Disputa de concorrência** — quando o horário está ocupado, o sistema decide entre deslocar a reserva de menor prioridade ou colocar o solicitante na fila de espera (ver seção 7.3).
@@ -99,7 +100,7 @@ Hoje a reserva de espaços depende de contato manual com a coordenação, planil
 9. **Fila de espera** — o primeiro da fila é avisado nas telas do sistema quando a vaga é liberada e precisa confirmar dentro do prazo.
 10. **Check-in e comparecimento** — o usuário confirma presença numa janela em torno do início. A falta de check-in gera falta.
 11. **Penalidade** — o acúmulo de faltas bloqueia novas reservas por um período. Só o administrador pode anular.
-12. **Avaliação** — após o uso, nota de 1 a 5 e comentário opcional, visíveis a todos.
+12. **Avaliação** — após o uso, nota de 1 a 5 e comentário opcional, feitos em "Minhas reservas" e visíveis na página do espaço, com a média no feed.
 13. **Cadastro de espaços e bloqueios** — pelo coordenador, na própria unidade.
 14. **Gestão** — regras, papéis e penalidades pelo administrador, com log de auditoria gravado. Painel e relatórios ficam fora da v1 (seção 5).
 
@@ -216,9 +217,9 @@ Os quatro tipos funcionam das 08h00 às 22h40. Esses são os valores da carga in
 
 ### 7.9 Avaliação
 
-- Disponível apenas para reservas **concluídas** (com check-in).
-- **Opcional**: uma avaliação por reserva, até **7 dias** após o término.
-- Nota de 1 a 5 e comentário opcional, **visíveis a todos os usuários** na página do espaço.
+- Disponível apenas para reservas **concluídas** (com check-in), e só para o dono da reserva.
+- **Opcional**: uma avaliação por reserva, até `prazo_avaliacao_dias` (padrão: **7 dias**) após o término, pelo valor atual do parâmetro. Não há edição nem exclusão.
+- Nota inteira de 1 a 5 e comentário opcional de até 500 caracteres, **visíveis na página do espaço** a todos os usuários que podem reservar o tipo dele, com a média e a quantidade também no feed. O autor aparece só com o primeiro nome e o papel atual. As avaliações de conta inativada continuam visíveis.
 
 ### 7.10 Cadastro e contas
 
@@ -300,11 +301,11 @@ Se o plano mudar, uma tarefa agendada passa a chamar o mesmo processamento, sem 
 
 - Autenticação por token (JWT do Xano). Senhas armazenadas apenas como hash.
 - Trocar ou redefinir a senha **encerra as sessões abertas** da conta: os tokens emitidos antes deixam de valer.
-- Todas as rotas da API do Xano exigem autenticação, exceto cadastro, login e a listagem pública de unidades ativas (somente id e nome) usada no formulário de cadastro.
+- Todas as rotas da API do Xano exigem autenticação, exceto cadastro, login e a listagem pública de unidades ativas (somente id e nome) usada no formulário de cadastro. A foto de capa dos espaços é servida numa URL pública, porque o plano gratuito não tem armazenamento privado; o envio e a remoção exigem autenticação e escopo.
 - Autorização por papel **e por escopo de unidade** (coordenador só enxerga e altera a própria unidade), sempre validada no backend.
 - Verificação de conflito e gravação de reserva **atômicas**.
 - Horários gravados com fuso horário explícito. As regras são avaliadas em America/Sao_Paulo.
-- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão, inativação ou bloqueio), criar e remover bloqueio, alterar regra, alterar papel, fazer check-in, registrar não comparecimento e conclusão (ações do sistema, com ator vazio e o instante real), cancelar tardiamente, registrar falta, aplicar penalidade e registrar o cumprimento dela (ações do sistema, salvo a falta por cancelamento tardio), encerrar entradas de fila por penalidade, anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
+- **Log de auditoria** para toda ação sensível: criar, aprovar, recusar, expirar (ação do sistema, com ator vazio), cancelar, deslocar (registrado como cancelamento com motivo `PRIORIDADE`, com quem deslocou como ator), entrar, confirmar e desistir da fila de espera, avisar, expirar e encerrar entradas da fila (ações do sistema com ator vazio, salvo o encerramento por gestão, inativação ou bloqueio), criar e remover bloqueio, avaliar reserva, enviar e remover a foto de capa de um espaço, alterar regra, alterar papel, fazer check-in, registrar não comparecimento e conclusão (ações do sistema, com ator vazio e o instante real), cancelar tardiamente, registrar falta, aplicar penalidade e registrar o cumprimento dela (ações do sistema, salvo a falta por cancelamento tardio), encerrar entradas de fila por penalidade, anular penalidade, aprovar cadastro, inativar e reativar conta, trocar e redefinir senha, criar, promover e rebaixar administrador, alterar parâmetros e cadastrar e alterar tipos de espaço, espaços e recursos. Nenhum registro guarda senha, hash ou token.
 - Registros de reserva, falta e penalidade **não são apagados fisicamente**. Mudam de status.
 - Tokens e credenciais nunca são versionados no Git.
 - Dados pessoais restritos ao necessário (LGPD): nome, e-mail institucional e vínculo.
@@ -331,13 +332,14 @@ Ordem das changes (ajustada durante os Explores):
 **Replanejamento de 22/11/2026.** Por causa do prazo de entrega, o usuário cortou da v1 a reserva recorrente (antiga C12), as fotos dos espaços e o painel e relatórios (antiga C15), e juntou o resto da C13 com o visual (decisão 1 do `decisions-log.md` da change `bloqueios`).
 
 11. Bloqueios: bloqueio de um espaço por período pelo coordenador da unidade ou pelo admin, recusado com reserva confirmada em andamento; cancela as reservas sobrepostas que ainda não começaram (motivo `BLOQUEIO`, com `bloqueio_id`, sem falta) e encerra as entradas de fila sobrepostas; a criação de reserva, inclusive com deslocamento, a entrada e a confirmação da fila recusam o período bloqueado; a busca mostra "Bloqueado"; remoção sem restaurar, sem edição; página "Bloqueios" (C11, `bloqueios`). Resolveu as pendências da C6 (ponto de extensão da criação e `bloqueio_id`), da C7 (sobrepostas pela situação efetiva) e da C9 (entrada na fila e encerramento).
-12. Espaço e visual: busca em formato de feed, página do espaço, avaliações (a avaliação depende das reservas concluídas da C10, seção 7.9) e acabamento do frontend, sem fotos.
+12. Espaço e visual: feed de espaços na Início (com busca por texto e os espaços restritos ao papel), página do espaço, avaliações (dependem das reservas concluídas da C10, seção 7.9), cartão da próxima reserva com check-in, foto de capa dos espaços e tema claro do design system do projeto (`espaco-feed-avaliacoes`).
 13. Extra, se houver tempo: bloqueio de todos os espaços de uma unidade numa só ação.
 
 **Trabalho futuro (fora da v1):**
 - Central de notificações in-app. Hoje o motivo de cada cancelamento, recusa, expiração e deslocamento já aparece em "Minhas reservas", e a vaga da fila aparece no topo das páginas. As pendências registradas para ela foram: notificar os cancelamentos automáticos (`CONTA_INATIVADA` e `ESPACO_INDISPONIVEL`) (C6); notificar aprovação, recusa e expiração (C7); avisar o dono da reserva deslocada (C8).
 - Contestação de penalidade pelo usuário.
-- Reserva recorrente de sala de aula (seção 7.5), fotos dos espaços e painel, relatórios e consulta do log de auditoria (replanejamento de 22/11/2026). Pendência da C7 para o painel: usar a situação efetiva.
+- Tema escuro do frontend. O design system já tem a paleta escura, registrada no design da change `espaco-feed-avaliacoes` (D10).
+- Reserva recorrente de sala de aula (seção 7.5), galeria de fotos dos espaços e painel, relatórios e consulta do log de auditoria (replanejamento de 22/11/2026). Pendência da C7 para o painel: usar a situação efetiva.
 - Motivo do encerramento na seção "Fila de espera" de "Minhas reservas" (hoje só "Fila encerrada"; exige um campo de motivo na entrada de fila).
 - E-mail de "vaga liberada" para quem está na fila (decisão 28 da C9), para o fim do projeto: Brevo (300 e-mails por dia no plano gratuito, remetente verificado) ou Resend pelo `util.send_email` do Xano (exige domínio próprio). É uma dependência externa nova, com change própria.
 

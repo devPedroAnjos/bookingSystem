@@ -4,6 +4,7 @@ import reflex as rx
 
 from bookingSystem.pages.componentes import dialogo, mensagem
 from bookingSystem.pages.layout import layout_autenticado
+from bookingSystem.state.avaliacao_state import TAMANHO_MAXIMO_COMENTARIO, AvaliacaoState
 from bookingSystem.state.faltas_state import FaltasState
 from bookingSystem.state.fila_state import CONFIRMAR, DESISTIR, FilaState
 from bookingSystem.state.reservas_state import ReservasState
@@ -76,6 +77,57 @@ def acoes(reserva: rx.Var[dict[str, str]]) -> rx.Component:
     )
 
 
+def acao_avaliar(reserva: rx.Var[dict[str, str]]) -> rx.Component:
+    """Nota já dada ou "Avaliar" com a data limite (espaco-feed-avaliacoes, D16)."""
+    return rx.cond(
+        reserva["nota"] != "",
+        rx.hstack(rx.icon("star", size=14, color="var(--bs-star)", fill="var(--bs-star)"),
+                  rx.text("Sua nota: " + reserva["nota"], size="1"), spacing="1", align="center"),
+        rx.cond(
+            reserva["pode_avaliar"] == "sim",
+            rx.vstack(
+                rx.button(rx.icon("star", size=14), "Avaliar", size="1", variant="soft",
+                          on_click=AvaliacaoState.abrir(reserva)),
+                rx.text("Até " + reserva["avaliar_ate"], size="1", color_scheme="gray"),
+                spacing="1",
+            ),
+        ),
+    )
+
+
+def estrela(valor: int) -> rx.Component:
+    return rx.icon_button(
+        rx.icon("star", size=28,
+                fill=rx.cond(AvaliacaoState.nota >= valor, "var(--bs-star)", "none"),
+                color=rx.cond(AvaliacaoState.nota >= valor, "var(--bs-star)", "var(--bs-line-strong)")),
+        type="button",
+        variant="ghost",
+        size="3",
+        on_click=AvaliacaoState.escolher(valor),
+        aria_label=f"{valor} estrela(s)",
+    )
+
+
+def dialogo_avaliar() -> rx.Component:
+    reserva = AvaliacaoState.reserva
+    return dialogo(
+        AvaliacaoState.aberta,
+        AvaliacaoState.mudar,
+        "Avaliar " + reserva["codigo"],
+        AvaliacaoState.enviar,
+        rx.text(reserva["espaco"] + " — " + reserva["data"] + ", " + reserva["horario"], size="2"),
+        rx.hstack(*[estrela(valor) for valor in range(1, 6)], spacing="1"),
+        rx.text_area(name="comentario", placeholder="Comentário (opcional)",
+                     max_length=TAMANHO_MAXIMO_COMENTARIO, width="100%"),
+        rx.text("A avaliação aparece na página do espaço com o seu primeiro nome e papel, "
+                "e não pode ser editada depois.", size="1", color_scheme="gray"),
+        mensagem(AvaliacaoState.erro, "red"),
+        botao="Enviar avaliação",
+        limpar_ao_enviar=False,
+        botao_desabilitado=AvaliacaoState.nota < 1,
+    )
+
+
 def linha(reserva: rx.Var[dict[str, str]], com_cancelar: bool) -> rx.Component:
     return rx.table.row(
         rx.table.cell(reserva["data"]),
@@ -86,7 +138,7 @@ def linha(reserva: rx.Var[dict[str, str]], com_cancelar: bool) -> rx.Component:
         ),
         rx.table.cell(reserva["unidade"]),
         rx.table.cell(situacao(reserva)),
-        rx.table.cell(acoes(reserva) if com_cancelar else rx.fragment()),
+        rx.table.cell(acoes(reserva) if com_cancelar else acao_avaliar(reserva)),
     )
 
 
@@ -408,4 +460,5 @@ def minhas_reservas() -> rx.Component:
         ),
         dialogo_cancelar(),
         dialogo_fila(),
+        dialogo_avaliar(),
     )

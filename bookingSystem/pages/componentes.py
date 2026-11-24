@@ -26,15 +26,30 @@ def campo_senha(nome: str, placeholder: str) -> rx.Component:
 
 
 def cartao(*filhos: rx.Component) -> rx.Component:
-    """Cartão centralizado usado nas páginas de formulário."""
+    """Cartão centralizado das páginas de formulário, com o logotipo (D18)."""
+    from bookingSystem.pages.marca import logotipo
+
     return rx.center(
-        rx.card(
-            rx.vstack(*filhos, spacing="4", width="100%"),
+        rx.vstack(
+            rx.link(rx.hstack(rx.icon("arrow-left", size=16), rx.text("Voltar"), spacing="1",
+                              align="center"),
+                    href="/", size="2", color="var(--bs-ink-muted)"),
+            rx.box(
+                rx.vstack(logotipo(184), *filhos, spacing="4", width="100%"),
+                width="100%",
+                background="var(--bs-surface)",
+                border="1px solid var(--bs-line)",
+                border_radius="var(--bs-radius-lg)",
+                padding="32px",
+                box_shadow="var(--bs-shadow-3)",
+            ),
             width="100%",
             max_width="420px",
+            spacing="3",
         ),
-        min_height="85vh",
+        min_height="100vh",
         padding="16px",
+        background="var(--bs-bg)",
     )
 
 
@@ -108,6 +123,7 @@ def dialogo(
     *campos: rx.Component,
     botao: str | rx.Var[str] = "Confirmar",
     limpar_ao_enviar: bool = True,
+    botao_desabilitado: rx.Var[bool] | bool = False,
 ) -> rx.Component:
     """Diálogo controlado pelo State, com um formulário e Cancelar/Confirmar.
 
@@ -124,7 +140,7 @@ def dialogo(
                         rx.dialog.close(
                             rx.button("Cancelar", variant="soft", type="button")
                         ),
-                        rx.button(botao, type="submit"),
+                        rx.button(botao, type="submit", disabled=botao_desabilitado),
                         justify="end",
                         width="100%",
                     ),

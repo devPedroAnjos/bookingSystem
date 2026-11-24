@@ -2,6 +2,7 @@
 // COORDENADOR só os das unidades que coordena; ALUNO e PROFESSOR recebem 403.
 // Uma consulta por tabela e junção em memória. Cada espaço traz unidade, tipo, recursos e a
 // disponibilidade derivada (inclui "tipo sem regras", C5). Ordem: nome da unidade e código.
+// espaco-feed-avaliacoes (D8): foto_url e foto_tamanho_max_kb em cada espaço.
 // Lista os espaços geridos com recursos e disponibilidade
 query geridos verb=GET {
   api_group = "espacos"
@@ -64,6 +65,15 @@ query geridos verb=GET {
       return = {type: "list"}
     } as $associacoes
   
+    // Tamanho máximo da foto em vigor, em cada item (a resposta continua uma lista)
+    db.query configuracao_geral {
+      return = {type: "single"}
+    } as $configuracao
+
+    var $foto_tamanho_max_kb {
+      value = $configuracao.foto_tamanho_max_kb
+    }
+
     var $resultado {
       value = []
     }
@@ -122,7 +132,12 @@ query geridos verb=GET {
                 tipo_com_regras: $com_regras
               }
             } as $disponibilidade
-          
+
+            // Foto de capa (espaco-feed-avaliacoes, D8)
+            function.run url_da_foto {
+              input = {foto: $espaco.foto_capa}
+            } as $foto_url
+
             var.update $resultado {
               value = $resultado
                 |push:```
@@ -146,7 +161,9 @@ query geridos verb=GET {
                     },
                     recursos   : $recursos_do_espaco|sort:"nome":"itext":true,
                     reservavel : $disponibilidade.reservavel,
-                    motivos    : $disponibilidade.motivos
+                    motivos    : $disponibilidade.motivos,
+                    foto_url   : $foto_url,
+                    foto_tamanho_max_kb: $foto_tamanho_max_kb
                   }
                   ```
             }

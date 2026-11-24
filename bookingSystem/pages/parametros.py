@@ -46,6 +46,8 @@ ROTULOS_LIMITES = {
     "faltas_para_penalidade": "Faltas para gerar uma penalidade",
     "janela_faltas_dias": "Janela de contagem das faltas, em dias",
     "duracao_penalidade_dias": "Duração da penalidade, em dias",
+    "prazo_avaliacao_dias": "Prazo para avaliar uma reserva concluída, em dias",
+    "foto_tamanho_max_kb": "Tamanho máximo da foto de capa, em KB",
 }
 
 NOMES_DIAS = {

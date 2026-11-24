@@ -8,8 +8,9 @@ import reflex as rx
 from bookingSystem.pages.administradores import administradores
 from bookingSystem.pages.aprovacoes import aprovacoes
 from bookingSystem.pages.bloqueios import bloqueios
-from bookingSystem.pages.buscar import buscar
+from bookingSystem.pages.boas_vindas import boas_vindas
 from bookingSystem.pages.cadastro import cadastro
+from bookingSystem.pages.espaco import espaco
 from bookingSystem.pages.espacos import espacos
 from bookingSystem.pages.inicio import inicio
 from bookingSystem.pages.login import login
@@ -32,6 +33,7 @@ from bookingSystem.state.auth_state import (
 from bookingSystem.state.bloqueios_state import BloqueiosState
 from bookingSystem.state.busca_state import BuscaState
 from bookingSystem.state.contas_state import ContasState
+from bookingSystem.state.espaco_state import EspacoState
 from bookingSystem.state.espacos_state import EspacosState
 from bookingSystem.state.faltas_state import FaltasState
 from bookingSystem.state.fila_state import FilaState
@@ -44,7 +46,14 @@ from bookingSystem.state.senha_state import SenhaState
 from bookingSystem.state.tipos_espaco_state import TiposEspacoState
 from bookingSystem.state.unidades_state import UnidadesState
 
-app = rx.App()
+# Fonte e tokens do design system (espaco-feed-avaliacoes, D10); o tema fica no rxconfig.py
+app = rx.App(
+    stylesheets=[
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        "/tema.css",
+    ],
+    head_components=[rx.el.link(rel="icon", type="image/svg+xml", href="/favicon.svg")],
+)
 app.add_page(
     login,
     route=ROTA_LOGIN,
@@ -60,14 +69,16 @@ app.add_page(
 app.add_page(
     inicio,
     route=ROTA_INICIO,
-    title="Início | BookingSystem",
-    on_load=[AuthState.verificar_sessao, FilaState.carregar],
+    title="Início | Booking System",
+    on_load=[AuthState.verificar_sessao, FilaState.carregar, BuscaState.abrir, ReservasState.abrir],
 )
+# A busca virou o feed da Início (D13): o endereço antigo leva para lá
+app.add_page(rx.fragment, route="/buscar", on_load=rx.redirect(ROTA_INICIO))
 app.add_page(
-    buscar,
-    route="/buscar",
-    title="Buscar espaços | BookingSystem",
-    on_load=[AuthState.verificar_sessao, BuscaState.abrir, FilaState.carregar],
+    espaco,
+    route="/espaco/[id_espaco]",
+    title="Espaço | Booking System",
+    on_load=[AuthState.verificar_sessao, EspacoState.abrir, FilaState.carregar],
 )
 app.add_page(
     minhas_reservas,
@@ -152,4 +163,9 @@ app.add_page(
     title="Parâmetros | BookingSystem",
     on_load=[AuthState.exigir_principal, ParametrosState.abrir, FilaState.carregar],
 )
-app.add_page(rx.fragment, route="/", on_load=rx.redirect(ROTA_INICIO))
+app.add_page(
+    boas_vindas,
+    route="/",
+    title="Booking System",
+    on_load=AuthState.abrir_boas_vindas,
+)

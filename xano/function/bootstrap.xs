@@ -70,7 +70,9 @@ function bootstrap {
         checkin_depois_minutos    : 15,
         faltas_para_penalidade    : 2,
         janela_faltas_dias        : 30,
-        duracao_penalidade_dias   : 7
+        duracao_penalidade_dias   : 7,
+        prazo_avaliacao_dias      : 7,
+        foto_tamanho_max_kb       : 1024
       }
     }
   
@@ -101,6 +103,8 @@ function bootstrap {
                 faltas_para_penalidade    : $parametros_padrao.faltas_para_penalidade
                 janela_faltas_dias        : $parametros_padrao.janela_faltas_dias
                 duracao_penalidade_dias   : $parametros_padrao.duracao_penalidade_dias
+                prazo_avaliacao_dias      : $parametros_padrao.prazo_avaliacao_dias
+                foto_tamanho_max_kb       : $parametros_padrao.foto_tamanho_max_kb
                 comparecimento_desde      : now
               }
             } as $configuracao_criada
